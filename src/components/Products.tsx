@@ -42,7 +42,7 @@ const getProductImage = (productName: string): string => {
     'Groundnuts': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSrdOf7_9rlSCZL_2X-lTtDK4_WFdNhCP98ZA&s',
   };
 
-  return imageMap[productName] || 'https://images.pexels.com/photos/3962286/pexels-photo-3962286.jpeg?w=400&h=300&fit=crop';
+  return imageMap[productName] || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT1gkutdgQHhRK_4bHIaWtDRkIgd1Fgquoj-g&s';
 };
 
 const Products = () => {

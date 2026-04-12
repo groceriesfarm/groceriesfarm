@@ -1,20 +1,9 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import spicesImg from '@/assets/category-spices.jpg';
-import pulsesImg from '@/assets/category-pulses.jpg';
-import herbalImg from '@/assets/category-herbal.jpg';
-import floursImg from '@/assets/category-flours.jpg';
-import farmingImg from '@/assets/category-farming.jpg';
-
-const categories = [
-  { id: 'spices', name: 'Spices', desc: 'Premium quality whole and ground spices sourced directly from farms.', img: spicesImg },
-  { id: 'pulses', name: 'Pulses', desc: 'Wide range of lentils, beans, and legumes in bulk quantities.', img: pulsesImg },
-  { id: 'herbal-powders', name: 'Herbal Powders', desc: 'Natural herbal powders for health, wellness, and beauty.', img: herbalImg },
-  { id: 'flours', name: 'Flours', desc: 'Fresh milled flours including wheat, rice, gram, and specialty blends.', img: floursImg },
-  { id: 'farming-products', name: 'Farming Products', desc: 'Quality farming produce and agricultural products.', img: farmingImg },
-];
+import { useProducts } from '@/context/ProductContext';
 
 const Categories = () => {
+  const { categories } = useProducts();
   return (
     <section id="categories" className="section-padding bg-section-alt">
       <div className="container-main">
@@ -25,15 +14,15 @@ const Categories = () => {
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categories.map((cat, i) => (
+          {Object.entries(categories).map(([id, cat], i) => (
             <div
-              key={cat.id}
+              key={id}
               className="group reveal rounded-xl overflow-hidden bg-card shadow-card border border-border hover:shadow-soft transition-all duration-300 hover:-translate-y-1"
               style={{ transitionDelay: `${i * 0.05}s` }}
             >
               <div className="relative h-48 overflow-hidden">
                 <img
-                  src={cat.img}
+                  src={cat.image || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT1gkutdgQHhRK_4bHIaWtDRkIgd1Fgquoj-g&s'}
                   alt={cat.name}
                   loading="lazy"
                   width={800}
@@ -44,9 +33,9 @@ const Categories = () => {
                 <h3 className="absolute bottom-4 left-4 font-display text-xl font-bold text-primary-foreground">{cat.name}</h3>
               </div>
               <div className="p-5">
-                <p className="text-sm text-muted-foreground mb-4">{cat.desc}</p>
+                <p className="text-sm text-muted-foreground mb-4">{cat.description || 'Premium wholesale products'}</p>
                 <Link
-                  to={`/products?category=${cat.id}`}
+                  to={`/products?category=${id}`}
                   className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-3 transition-all"
                 >
                   Explore Products <ArrowRight size={14} />

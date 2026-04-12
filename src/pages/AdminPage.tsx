@@ -13,11 +13,19 @@ const AdminPanel = () => {
   const [editImage, setEditImage] = useState('');
   const [newProductName, setNewProductName] = useState('');
   const [newProductImage, setNewProductImage] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [newCategoryImage, setNewCategoryImage] = useState('');
   const navigate = useNavigate();
-  const { categories, addProduct, deleteProduct, editProduct } = useProducts();
+
+  // Helper function to generate category ID from name
+  const generateCategoryId = (name: string) => {
+    return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  };
+  const { categories, addProduct, deleteProduct, editProduct, addCategory, deleteCategory } = useProducts();
   const { toast } = useToast();
 
-  const ADMIN_PASSWORD = 'Satya@Dev10'; // Change this to a secure password
+  const ADMIN_PASSWORD = 'Satya@Dev10';
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,22 +147,114 @@ const AdminPanel = () => {
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Category Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-card border border-border rounded-xl p-4 shadow-card sticky top-4">
-              <h3 className="font-semibold text-foreground mb-4">Categories</h3>
-              <div className="space-y-2">
-                {Object.entries(categories).map(([id, cat]) => (
+            <div className="bg-card border border-border rounded-xl p-4 shadow-card sticky top-4 space-y-4">
+              <div>
+                <h3 className="font-semibold text-foreground mb-4">Categories</h3>
+                <div className="space-y-2">
+                  {Object.entries(categories).map(([id, cat]) => (
+                    <div key={id} className="flex items-center gap-2 group">
+                      <button
+                        onClick={() => setSelectedCategory(id)}
+                        className={`flex-1 text-left px-4 py-2 rounded-lg transition-colors ${
+                          selectedCategory === id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete category "${cat.name}"? All products in this category will be deleted.`)) {
+                            deleteCategory(id);
+                            if (selectedCategory === id) {
+                              setSelectedCategory(Object.keys(categories)[0] || 'spices');
+                            }
+                            toast({ title: 'Category deleted successfully' });
+                          }
+                        }}
+                        className="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete category"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Add Category Section */}
+              <div className="border-t border-border pt-4">
+                <h4 className="font-semibold text-foreground mb-3 text-sm">Add New Category</h4>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newCategoryName.trim()) {
+                      toast({ title: 'Please enter a category name', variant: 'destructive' });
+                      return;
+                    }
+                    const categoryId = generateCategoryId(newCategoryName);
+                    if (categories[categoryId]) {
+                      toast({ title: 'Category already exists', variant: 'destructive' });
+                      return;
+                    }
+                    addCategory(categoryId, newCategoryName, newCategoryDescription || undefined, newCategoryImage || undefined);
+                    toast({ title: 'Category added successfully' });
+                    setNewCategoryName('');
+                    setNewCategoryDescription('');
+                    setNewCategoryImage('');
+                  }}
+                  className="space-y-3"
+                >
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Category Name"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <textarea
+                      placeholder="Category Description"
+                      value={newCategoryDescription}
+                      onChange={(e) => setNewCategoryDescription(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex items-center justify-center px-2 py-2 rounded-lg border-2 border-dashed border-border bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+                      <Image size={14} className="text-primary" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, setNewCategoryImage)}
+                        className="hidden"
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Or paste URL"
+                      value={newCategoryImage}
+                      onChange={(e) => setNewCategoryImage(e.target.value)}
+                      className="flex-1 px-2 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-xs"
+                    />
+                  </div>
+                  {newCategoryImage && (
+                    <div className="p-2 rounded-lg bg-muted">
+                      <img src={newCategoryImage} alt="Preview" className="h-12 w-12 object-cover rounded" />
+                    </div>
+                  )}
                   <button
-                    key={id}
-                    onClick={() => setSelectedCategory(id)}
-                    className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                      selectedCategory === id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-foreground hover:bg-muted/80'
-                    }`}
+                    type="submit"
+                    className="w-full px-3 py-2 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                   >
-                    {cat.name}
+                    <Plus size={16} />
+                    Add
                   </button>
-                ))}
+                </form>
               </div>
             </div>
           </div>

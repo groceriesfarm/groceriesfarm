@@ -1,4 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import spicesImg from '@/assets/category-spices.jpg';
+import pulsesImg from '@/assets/category-pulses.jpg';
+import herbalImg from '@/assets/category-herbal.jpg';
+import floursImg from '@/assets/category-flours.jpg';
+import farmingImg from '@/assets/category-farming.jpg';
+import { fetchCategoriesFromFirebase, saveCategoryToFirebase, deleteCategoryFromFirebase, syncAllCategoriesToFirebase } from '@/services/firebaseService';
 
 export interface Product {
   id: string;
@@ -9,6 +15,8 @@ export interface Product {
 
 export interface ProductCategory {
   name: string;
+  description?: string;
+  image?: string;
   items: Product[];
 }
 
@@ -17,6 +25,8 @@ interface ProductContextType {
   addProduct: (category: string, productName: string, imageUrl?: string) => void;
   deleteProduct: (category: string, productId: string) => void;
   editProduct: (category: string, productId: string, newName: string, imageUrl?: string) => void;
+  addCategory: (categoryId: string, categoryName: string, description?: string, image?: string) => void;
+  deleteCategory: (categoryId: string) => void;
   loadProducts: () => void;
 }
 
@@ -25,6 +35,8 @@ const ProductContext = createContext<ProductContextType | undefined>(undefined);
 const defaultCategories: Record<string, ProductCategory> = {
   spices: {
     name: 'Spices',
+    description: 'Premium quality whole and ground spices sourced directly from farms.',
+    image: spicesImg,
     items: [
       { id: '1', name: 'Turmeric', category: 'spices' },
       { id: '2', name: 'Red Chili Powder', category: 'spices' },
@@ -38,6 +50,8 @@ const defaultCategories: Record<string, ProductCategory> = {
   },
   pulses: {
     name: 'Pulses',
+    description: 'Wide range of lentils, beans, and legumes in bulk quantities.',
+    image: pulsesImg,
     items: [
       { id: '9', name: 'Toor Dal', category: 'pulses' },
       { id: '10', name: 'Moong Dal', category: 'pulses' },
@@ -51,6 +65,8 @@ const defaultCategories: Record<string, ProductCategory> = {
   },
   'herbal-powders': {
     name: 'Herbal Powders',
+    description: 'Natural herbal powders for health, wellness, and beauty.',
+    image: herbalImg,
     items: [
       { id: '17', name: 'Moringa Powder', category: 'herbal-powders' },
       { id: '18', name: 'Ashwagandha', category: 'herbal-powders' },
@@ -62,6 +78,8 @@ const defaultCategories: Record<string, ProductCategory> = {
   },
   flours: {
     name: 'Flours',
+    description: 'Fresh milled flours including wheat, rice, gram, and specialty blends.',
+    image: floursImg,
     items: [
       { id: '23', name: 'Wheat Flour', category: 'flours' },
       { id: '24', name: 'Rice Flour', category: 'flours' },
@@ -73,6 +91,8 @@ const defaultCategories: Record<string, ProductCategory> = {
   },
   'farming-products': {
     name: 'Farming Products',
+    description: 'Quality farming produce and agricultural products.',
+    image: farmingImg,
     items: [
       { id: '29', name: 'Basmati Rice', category: 'farming-products' },
       { id: '30', name: 'Wheat Grain', category: 'farming-products' },
@@ -86,23 +106,94 @@ const defaultCategories: Record<string, ProductCategory> = {
 
 export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [categories, setCategories] = useState<Record<string, ProductCategory>>(defaultCategories);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load products from localStorage on mount
+  // Load products from Firebase on mount, with localStorage fallback
   useEffect(() => {
-    const saved = localStorage.getItem('all_products');
-    if (saved) {
+    const loadData = async () => {
       try {
-        setCategories(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to load products:', e);
+        // Try to load from Firebase first
+        const firebaseData = await fetchCategoriesFromFirebase();
+        
+        if (Object.keys(firebaseData).length > 0) {
+          // Firebase has data - merge with defaults
+          const merged = { ...defaultCategories };
+          Object.keys(firebaseData).forEach((key) => {
+            if (merged[key as keyof typeof defaultCategories]) {
+              // Keep default metadata, merge items
+              merged[key as keyof typeof defaultCategories].items = firebaseData[key].items || [];
+            } else {
+              // New category from Firebase
+              merged[key] = firebaseData[key];
+            }
+          });
+          setCategories(merged);
+          // Also save to localStorage as backup
+          localStorage.setItem('all_products', JSON.stringify(merged));
+        } else {
+          // No Firebase data, try localStorage
+          const saved = localStorage.getItem('all_products');
+          if (saved) {
+            try {
+              const parsedData = JSON.parse(saved);
+              const merged = { ...defaultCategories };
+              Object.keys(parsedData).forEach((key) => {
+                if (merged[key as keyof typeof defaultCategories]) {
+                  merged[key as keyof typeof defaultCategories].items = parsedData[key].items || [];
+                } else {
+                  merged[key] = parsedData[key];
+                }
+              });
+              setCategories(merged);
+              // Sync localStorage data to Firebase
+              syncAllCategoriesToFirebase(merged).catch(err => 
+                console.log('Firebase sync skipped:', err.message)
+              );
+            } catch (e) {
+              console.error('Failed to load from localStorage:', e);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Firebase load skipped, using localStorage:', error);
+        // Fallback to localStorage
+        const saved = localStorage.getItem('all_products');
+        if (saved) {
+          try {
+            const parsedData = JSON.parse(saved);
+            const merged = { ...defaultCategories };
+            Object.keys(parsedData).forEach((key) => {
+              if (merged[key as keyof typeof defaultCategories]) {
+                merged[key as keyof typeof defaultCategories].items = parsedData[key].items || [];
+              } else {
+                merged[key] = parsedData[key];
+              }
+            });
+            setCategories(merged);
+          } catch (e) {
+            console.error('Failed to load products:', e);
+          }
+        }
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+
+    loadData();
   }, []);
 
-  // Save to localStorage whenever categories change
+  // Save to Firebase and localStorage whenever categories change
   useEffect(() => {
-    localStorage.setItem('all_products', JSON.stringify(categories));
-  }, [categories]);
+    if (!isLoading) {
+      // Save to localStorage immediately
+      localStorage.setItem('all_products', JSON.stringify(categories));
+      
+      // Async save to Firebase
+      syncAllCategoriesToFirebase(categories).catch(err => 
+        console.log('Firebase sync error:', err.message)
+      );
+    }
+  }, [categories, isLoading]);
 
   const addProduct = (category: string, productName: string, imageUrl?: string) => {
     setCategories((prev) => {
@@ -136,6 +227,29 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
+  const addCategory = (categoryId: string, categoryName: string, description?: string, image?: string) => {
+    setCategories((prev) => {
+      const updated = { ...prev };
+      if (!updated[categoryId]) {
+        updated[categoryId] = { name: categoryName, description, image, items: [] };
+      }
+      return updated;
+    });
+  };
+
+  const deleteCategory = (categoryId: string) => {
+    setCategories((prev) => {
+      const updated = { ...prev };
+      delete updated[categoryId];
+      return updated;
+    });
+    
+    // Also delete from Firebase
+    deleteCategoryFromFirebase(categoryId).catch(err => 
+      console.log('Firebase delete error:', err.message)
+    );
+  };
+
   const loadProducts = () => {
     const saved = localStorage.getItem('all_products');
     if (saved) {
@@ -148,7 +262,7 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <ProductContext.Provider value={{ categories, addProduct, deleteProduct, editProduct, loadProducts }}>
+    <ProductContext.Provider value={{ categories, addProduct, deleteProduct, editProduct, addCategory, deleteCategory, loadProducts }}>
       {children}
     </ProductContext.Provider>
   );
