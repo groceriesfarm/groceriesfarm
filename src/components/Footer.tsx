@@ -17,7 +17,7 @@ const Footer = () => {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Logo className="h-7 w-7" />
-              <h3 className="font-display text-xl font-bold text-primary">BulkStore</h3>
+              <h3 className="font-display text-xl font-bold text-primary">Groceries Farm</h3>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Your trusted wholesale partner for premium quality ingredients and produce since 1998.
@@ -54,15 +54,15 @@ const Footer = () => {
           <div>
             <h4 className="font-semibold text-foreground mb-3">Contact</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>+91 98765 43210</li>
-              <li>info@bulkstore.com</li>
-              <li>Mumbai, Maharashtra</li>
+              <li>+91 8247035192</li>
+              <li>groceriesfarm1@gmail.com</li>
+              <li>Peddapuram, AndhraPradesh, India</li>
             </ul>
           </div>
         </div>
 
         <div className="mt-10 pt-6 border-t border-border text-center">
-          <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} BulkStore. All rights reserved.</p>
+          <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} Groceries Farm. All rights reserved.</p>
         </div>
       </div>
     </footer>

@@ -17,7 +17,7 @@ const About = () => (
             Your Trusted Wholesale Partner Since 1998
           </h2>
           <p className="text-muted-foreground leading-relaxed mb-6">
-            With over 25 years of experience in the wholesale industry, BulkStore has been a reliable partner for
+            With over 25 years of experience in the wholesale industry, Groceries Farm has been a reliable partner for
             businesses across India. We source premium quality products directly from farms and manufacturers,
             ensuring competitive pricing and consistent quality.
           </p>

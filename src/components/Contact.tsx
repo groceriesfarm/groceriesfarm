@@ -3,10 +3,10 @@ import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const contactInfo = [
-  { icon: Phone, label: 'Phone', value: '+91 98765 43210' },
-  { icon: Mail, label: 'Email', value: 'info@bulkstore.com' },
-  { icon: MapPin, label: 'Address', value: 'Mumbai, Maharashtra, India' },
-  { icon: Clock, label: 'Hours', value: 'Mon-Sat: 9:00 AM - 6:00 PM' },
+  { icon: Phone, label: 'Phone', value: '+91 8247035192' },
+  { icon: Mail, label: 'Email', value: 'groceriesfarm1@gmail.com' },
+  { icon: MapPin, label: 'Address', value: 'Peddapuram, AndhraPradesh, India' },
+  { icon: Clock, label: 'Hours', value: 'Tue-Sun: 9:00 AM - 6:00 PM' },
 ];
 
 const Contact = () => {

@@ -42,7 +42,7 @@ const Navbar = ({ isDark, toggleTheme }: NavbarProps) => {
         <Link to="/" className="flex items-center gap-2 group flex-shrink-0 mr-8">
           <Logo className="h-8 w-8 transition-transform group-hover:scale-110" />
           <span className="font-display text-xl font-bold text-primary group-hover:text-primary/80 transition-colors">
-            BulkStore
+            Groceries Farm
           </span>
         </Link>
 
