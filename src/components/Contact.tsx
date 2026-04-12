@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import emailjs from '@emailjs/browser';
 
 const contactInfo = [
   { icon: Phone, label: 'Phone', value: '+91 8247035192' },
@@ -14,19 +15,44 @@ const Contact = () => {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  // Initialize EmailJS
+  useEffect(() => {
+    emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY || '');
+  }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.message) {
       toast({ title: 'Please fill in all required fields', variant: 'destructive' });
       return;
     }
+
     setSending(true);
-    // Simulate send
-    setTimeout(() => {
-      setSending(false);
+    try {
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID || '',
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '',
+        {
+          to_email: 'groceriesfarm1@gmail.com',
+          from_name: form.name,
+          from_email: form.email,
+          phone: form.phone || 'Not provided',
+          message: form.message,
+        }
+      );
+
       toast({ title: 'Message sent!', description: 'We will get back to you shortly.' });
       setForm({ name: '', email: '', phone: '', message: '' });
-    }, 1000);
+    } catch (error) {
+      console.error('Email send error:', error);
+      toast({
+        title: 'Failed to send message',
+        description: 'Please try again or contact us directly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
