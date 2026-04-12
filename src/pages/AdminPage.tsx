@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Edit2, Plus, LogOut, Lock, Image } from 'lucide-react';
+import { Trash2, Edit2, Plus, LogOut, Lock, Image, Loader } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
 import { useToast } from '@/hooks/use-toast';
+import { loginWithEmail, logoutUser, onAuthChange, isCurrentUserAdmin, getAdminEmail } from '@/services/authService';
+import { AuthUser } from '@/services/authService';
 
 const AdminPanel = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
   const [selectedCategory, setSelectedCategory] = useState('spices');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -16,32 +22,59 @@ const AdminPanel = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
   const [newCategoryImage, setNewCategoryImage] = useState('');
+  
   const navigate = useNavigate();
+  const { categories, addProduct, deleteProduct, editProduct, addCategory, deleteCategory } = useProducts();
+  const { toast } = useToast();
 
   // Helper function to generate category ID from name
   const generateCategoryId = (name: string) => {
     return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   };
-  const { categories, addProduct, deleteProduct, editProduct, addCategory, deleteCategory } = useProducts();
-  const { toast } = useToast();
 
-  const ADMIN_PASSWORD = 'Satya@Dev10';
+  // Listen to auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthChange((user) => {
+      if (user && user.isAdmin) {
+        setCurrentUser(user);
+      } else if (user && !user.isAdmin) {
+        // User logged in but not admin - logout
+        logoutUser();
+        toast({ title: 'Access Denied', description: 'Only admin account can access this panel', variant: 'destructive' });
+      } else {
+        setCurrentUser(null);
+      }
+      setIsAuthenticating(false);
+    });
 
-  const handleLogin = (e: React.FormEvent) => {
+    return () => unsubscribe();
+  }, [toast]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      toast({ title: 'Login successful', variant: 'default' });
+    setIsLoading(true);
+    try {
+      const user = await loginWithEmail(email, password);
+      setCurrentUser(user);
+      toast({ title: 'Login successful', description: `Welcome ${user.email}!`, variant: 'default' });
+      setEmail('');
       setPassword('');
-    } else {
-      toast({ title: 'Invalid password', variant: 'destructive' });
+    } catch (error: any) {
+      toast({ title: 'Login failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setPassword('');
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      setCurrentUser(null);
+      toast({ title: 'Logged out', description: 'You have been logged out successfully' });
+      navigate('/');
+    } catch (error: any) {
+      toast({ title: 'Logout failed', description: error.message, variant: 'destructive' });
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
@@ -92,8 +125,20 @@ const AdminPanel = () => {
     setEditImage('');
   };
 
+  // Loading state
+  if (isAuthenticating) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
+        <div className="text-center">
+          <Loader className="animate-spin h-12 w-12 text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Login UI
-  if (!isAuthenticated) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-8">
@@ -103,25 +148,47 @@ const AdminPanel = () => {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-center mb-2">Admin Panel</h1>
-          <p className="text-muted-foreground text-center mb-6">Enter password to access</p>
+          <p className="text-muted-foreground text-center mb-2 text-sm">Firebase Authentication</p>
+          <p className="text-muted-foreground text-center mb-6 text-xs">
+            Admin Email: {getAdminEmail()}
+          </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">Email</label>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                className="w-full px-4 py-3 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">Password</label>
               <input
                 type="password"
-                placeholder="Enter admin password"
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                disabled={isLoading}
+                className="w-full px-4 py-3 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
               />
             </div>
             <button
               type="submit"
-              className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
+              disabled={isLoading}
+              className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Login
+              {isLoading && <Loader className="animate-spin h-4 w-4" />}
+              {isLoading ? 'Logging in...' : 'Login'}
             </button>
           </form>
+
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            💡 Uses Firebase Authentication for secure access
+          </p>
         </div>
       </div>
     );
@@ -132,7 +199,10 @@ const AdminPanel = () => {
     <div className="min-h-screen bg-muted/50">
       <nav className="bg-card border-b border-border shadow-sm">
         <div className="container-main py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Admin Panel</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Admin Panel</h1>
+            <p className="text-sm text-muted-foreground">Logged in as: {currentUser.email}</p>
+          </div>
           <button
             onClick={handleLogout}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity"

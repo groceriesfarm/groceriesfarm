@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 // TODO: Replace with your Firebase config from Firebase Console
 // 1. Go to https://console.firebase.google.com
@@ -20,6 +21,9 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore
 export const db = getFirestore(app);
+
+// Initialize Firebase Authentication
+export const auth = getAuth(app);
 
 // Optional: Connect to Firestore emulator for local development
 // Uncomment if you want to use Firestore emulator for testing
