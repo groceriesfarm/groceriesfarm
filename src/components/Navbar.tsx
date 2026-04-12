@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Moon, Sun, Menu, X } from 'lucide-react';
+import { Moon, Sun, Menu, X, Settings } from 'lucide-react';
 import Logo from './Logo';
 
 interface NavbarProps {
@@ -71,6 +71,18 @@ const Navbar = ({ isDark, toggleTheme }: NavbarProps) => {
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
+          <Link
+            to="/admin"
+            className={`ml-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+              isActive('/admin')
+                ? 'text-primary bg-primary/10'
+                : 'text-foreground hover:text-primary hover:bg-primary/5'
+            }`}
+            title="Admin Panel"
+          >
+            <Settings size={18} />
+            <span className="hidden lg:inline">Admin</span>
+          </Link>
         </div>
 
         {/* Right: Mobile Menu Buttons */}
@@ -110,6 +122,18 @@ const Navbar = ({ isDark, toggleTheme }: NavbarProps) => {
                 {l.label}
               </Link>
             ))}
+            <Link
+              to="/admin"
+              onClick={() => setMobileOpen(false)}
+              className={`text-left px-3 py-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                isActive('/admin')
+                  ? 'text-primary bg-primary/10'
+                  : 'text-foreground hover:text-primary hover:bg-primary/5'
+              }`}
+            >
+              <Settings size={18} />
+              Admin Panel
+            </Link>
           </div>
         </div>
       )}

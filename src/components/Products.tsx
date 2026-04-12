@@ -1,67 +1,6 @@
 import { useSearchParams, Link } from 'react-router-dom';
 import { X } from 'lucide-react';
-
-const productData: Record<string, { name: string; items: Array<{ name: string }> }> = {
-  spices: {
-    name: 'Spices',
-    items: [
-      { name: 'Turmeric' },
-      { name: 'Red Chili Powder' },
-      { name: 'Coriander Powder' },
-      { name: 'Cumin Seeds' },
-      { name: 'Black Pepper' },
-      { name: 'Garam Masala' },
-      { name: 'Cardamom' },
-      { name: 'Cinnamon' },
-    ],
-  },
-  pulses: {
-    name: 'Pulses',
-    items: [
-      { name: 'Toor Dal' },
-      { name: 'Moong Dal' },
-      { name: 'Chana Dal' },
-      { name: 'Masoor Dal' },
-      { name: 'Urad Dal' },
-      { name: 'Rajma' },
-      { name: 'Chickpeas' },
-      { name: 'Green Moong' },
-    ],
-  },
-  'herbal-powders': {
-    name: 'Herbal Powders',
-    items: [
-      { name: 'Moringa Powder' },
-      { name: 'Ashwagandha' },
-      { name: 'Neem Powder' },
-      { name: 'Amla Powder' },
-      { name: 'Henna Powder' },
-      { name: 'Tulsi Powder' },
-    ],
-  },
-  flours: {
-    name: 'Flours',
-    items: [
-      { name: 'Wheat Flour' },
-      { name: 'Rice Flour' },
-      { name: 'Gram Flour (Besan)' },
-      { name: 'Corn Flour' },
-      { name: 'Ragi Flour' },
-      { name: 'Multigrain Flour' },
-    ],
-  },
-  'farming-products': {
-    name: 'Farming Products',
-    items: [
-      { name: 'Basmati Rice' },
-      { name: 'Wheat Grain' },
-      { name: 'Jaggery' },
-      { name: 'Mustard Seeds' },
-      { name: 'Sesame Seeds' },
-      { name: 'Groundnuts' },
-    ],
-  },
-};
+import { useProducts } from '@/context/ProductContext';
 
 // Function to generate image URLs for each product using high-quality sources
 const getProductImage = (productName: string): string => {
@@ -109,6 +48,16 @@ const getProductImage = (productName: string): string => {
 const Products = () => {
   const [searchParams] = useSearchParams();
   const categoryFilter = searchParams.get('category');
+  const { categories } = useProducts();
+
+  // Convert categories object to match old structure
+  const productData = Object.entries(categories).reduce((acc, [key, cat]) => {
+    acc[key] = {
+      name: cat.name,
+      items: cat.items.map(item => ({ name: item.name, image: item.image }))
+    };
+    return acc;
+  }, {} as Record<string, { name: string; items: Array<{ name: string; image?: string }> }>);
 
   // Filter products based on category parameter
   const filteredProducts = categoryFilter 
@@ -189,7 +138,7 @@ const Products = () => {
                 >
                   <div className="aspect-[4/3] overflow-hidden bg-muted">
                     <img 
-                      src={getProductImage(item.name)} 
+                      src={item.image || getProductImage(item.name)} 
                       alt={item.name}
                       loading="lazy"
                       decoding="async"
