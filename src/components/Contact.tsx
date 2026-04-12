@@ -1,7 +1,6 @@
-import { useState, type FormEvent, useEffect } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import emailjs from '@emailjs/browser';
 
 const contactInfo = [
   { icon: Phone, label: 'Phone', value: '+91 8247035192' },
@@ -15,11 +14,6 @@ const Contact = () => {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [sending, setSending] = useState(false);
 
-  // Initialize EmailJS
-  useEffect(() => {
-    emailjs.init(import.meta.env.VITE_EMAILJS_PUBLIC_KEY || '');
-  }, []);
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.message) {
@@ -29,20 +23,26 @@ const Contact = () => {
 
     setSending(true);
     try {
-      await emailjs.send(
-        import.meta.env.VITE_EMAILJS_SERVICE_ID || '',
-        import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '',
-        {
-          to_email: 'groceriesfarm1@gmail.com',
-          from_name: form.name,
-          from_email: form.email,
+      // Using FormSubmit.co - FREE, no signup required
+      const response = await fetch('https://formsubmit.co/groceriesfarm1@gmail.com', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
           phone: form.phone || 'Not provided',
           message: form.message,
-        }
-      );
+        }),
+      });
 
-      toast({ title: 'Message sent!', description: 'We will get back to you shortly.' });
-      setForm({ name: '', email: '', phone: '', message: '' });
+      if (response.ok) {
+        toast({ title: 'Message sent!', description: 'We will get back to you shortly.' });
+        setForm({ name: '', email: '', phone: '', message: '' });
+      } else {
+        throw new Error('Failed to send');
+      }
     } catch (error) {
       console.error('Email send error:', error);
       toast({
