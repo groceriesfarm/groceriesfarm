@@ -26,6 +26,7 @@ interface ProductContextType {
   deleteProduct: (category: string, productId: string) => void;
   editProduct: (category: string, productId: string, newName: string, imageUrl?: string) => void;
   addCategory: (categoryId: string, categoryName: string, description?: string, image?: string) => void;
+  editCategory: (categoryId: string, categoryName: string, description?: string, image?: string) => void;
   deleteCategory: (categoryId: string) => void;
   loadProducts: () => void;
 }
@@ -112,68 +113,53 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Try to load from Firebase first
-        const firebaseData = await fetchCategoriesFromFirebase();
-        
-        if (Object.keys(firebaseData).length > 0) {
-          // Firebase has data - merge with defaults
-          const merged = { ...defaultCategories };
-          Object.keys(firebaseData).forEach((key) => {
-            if (merged[key as keyof typeof defaultCategories]) {
-              // Keep default metadata, merge items
-              merged[key as keyof typeof defaultCategories].items = firebaseData[key].items || [];
-            } else {
-              // New category from Firebase
-              merged[key] = firebaseData[key];
-            }
-          });
-          setCategories(merged);
-          // Also save to localStorage as backup
-          localStorage.setItem('all_products', JSON.stringify(merged));
-        } else {
-          // No Firebase data, try localStorage
-          const saved = localStorage.getItem('all_products');
-          if (saved) {
-            try {
-              const parsedData = JSON.parse(saved);
-              const merged = { ...defaultCategories };
-              Object.keys(parsedData).forEach((key) => {
-                if (merged[key as keyof typeof defaultCategories]) {
-                  merged[key as keyof typeof defaultCategories].items = parsedData[key].items || [];
-                } else {
-                  merged[key] = parsedData[key];
-                }
-              });
-              setCategories(merged);
-              // Sync localStorage data to Firebase
-              syncAllCategoriesToFirebase(merged).catch(err => 
-                console.log('Firebase sync skipped:', err.message)
-              );
-            } catch (e) {
-              console.error('Failed to load from localStorage:', e);
-            }
-          }
-        }
-      } catch (error) {
-        console.log('Firebase load skipped, using localStorage:', error);
-        // Fallback to localStorage
+        // Priority 1: Try to load from localStorage first (most up-to-date)
         const saved = localStorage.getItem('all_products');
         if (saved) {
           try {
             const parsedData = JSON.parse(saved);
+            // Merge with defaults to ensure default category images/descriptions are preserved
             const merged = { ...defaultCategories };
             Object.keys(parsedData).forEach((key) => {
-              if (merged[key as keyof typeof defaultCategories]) {
-                merged[key as keyof typeof defaultCategories].items = parsedData[key].items || [];
+              if (merged[key]) {
+                // Preserve default metadata, use saved items
+                merged[key].items = parsedData[key].items || [];
               } else {
+                // New category - use as is
                 merged[key] = parsedData[key];
               }
             });
             setCategories(merged);
+            setIsLoading(false);
+            return;
           } catch (e) {
-            console.error('Failed to load products:', e);
+            console.error('Failed to load from localStorage:', e);
           }
         }
+
+        // Priority 2: Try Firebase
+        const firebaseData = await fetchCategoriesFromFirebase();
+        if (Object.keys(firebaseData).length > 0) {
+          const merged = { ...defaultCategories };
+          Object.keys(firebaseData).forEach((key) => {
+            if (merged[key]) {
+              merged[key].items = firebaseData[key].items || [];
+            } else {
+              merged[key] = firebaseData[key];
+            }
+          });
+          setCategories(merged);
+          localStorage.setItem('all_products', JSON.stringify(merged));
+        } else {
+          // No Firebase data and no localStorage - use defaults
+          setCategories(defaultCategories);
+          localStorage.setItem('all_products', JSON.stringify(defaultCategories));
+        }
+      } catch (error) {
+        console.log('Firebase load failed:', error);
+        // Final fallback - use default categories
+        setCategories(defaultCategories);
+        localStorage.setItem('all_products', JSON.stringify(defaultCategories));
       } finally {
         setIsLoading(false);
       }
@@ -232,6 +218,10 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const updated = { ...prev };
       if (!updated[categoryId]) {
         updated[categoryId] = { name: categoryName, description, image, items: [] };
+        // Save to Firebase immediately
+        saveCategoryToFirebase(categoryId, { name: categoryName, description, image, items: [] }).catch(err => 
+          console.log('Firebase save error:', err.message)
+        );
       }
       return updated;
     });

@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 
 // Get admin email from environment - only this email can access admin panel
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@groceries-farm.com';
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'groceriesfarm1@gmail.com';
 
 export interface AuthUser extends User {
   isAdmin?: boolean;
