@@ -4,10 +4,10 @@ import { ArrowRight } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
 
 const Categories = () => {
-  const { categories, isLoading, loadProducts } = useProducts();
+  const { categories, loadProducts } = useProducts();
 
   useEffect(() => {
-    // Always fetch fresh from Firebase when this section mounts
+    // Always fetch fresh from Firebase when homepage mounts
     loadProducts();
 
     // Re-fetch when user returns to this browser tab
@@ -22,19 +22,6 @@ const Categories = () => {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (isLoading) {
-    return (
-      <section id="categories" className="section-padding bg-section-alt">
-        <div className="container-main flex justify-center items-center py-24">
-          <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-            <p className="text-muted-foreground text-sm">Loading categories...</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section id="categories" className="section-padding bg-section-alt">
