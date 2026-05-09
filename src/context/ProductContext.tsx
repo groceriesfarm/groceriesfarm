@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+
 import spicesImg from '@/assets/category-spices.jpg';
 import pulsesImg from '@/assets/category-pulses.jpg';
 import herbalImg from '@/assets/category-herbal.jpg';
@@ -28,31 +29,41 @@ export interface ProductCategory {
 
 interface ProductContextType {
   categories: Record<string, ProductCategory>;
+
   addProduct: (
     category: string,
     productName: string,
     imageUrl?: string
   ) => void;
-  deleteProduct: (category: string, productId: string) => void;
+
+  deleteProduct: (
+    category: string,
+    productId: string
+  ) => void;
+
   editProduct: (
     category: string,
     productId: string,
     newName: string,
     imageUrl?: string
   ) => void;
+
   addCategory: (
     categoryId: string,
     categoryName: string,
     description?: string,
     image?: string
   ) => void;
+
   editCategory: (
     categoryId: string,
     categoryName: string,
     description?: string,
     image?: string
   ) => void;
+
   deleteCategory: (categoryId: string) => void;
+
   loadProducts: () => void;
 }
 
@@ -66,16 +77,7 @@ const defaultCategories: Record<string, ProductCategory> = {
     description:
       'Premium quality whole and ground spices sourced directly from farms.',
     image: spicesImg,
-    items: [
-      { id: '1', name: 'Turmeric', category: 'spices' },
-      { id: '2', name: 'Red Chili Powder', category: 'spices' },
-      { id: '3', name: 'Coriander Powder', category: 'spices' },
-      { id: '4', name: 'Cumin Seeds', category: 'spices' },
-      { id: '5', name: 'Black Pepper', category: 'spices' },
-      { id: '6', name: 'Garam Masala', category: 'spices' },
-      { id: '7', name: 'Cardamom', category: 'spices' },
-      { id: '8', name: 'Cinnamon', category: 'spices' },
-    ],
+    items: [],
   },
 
   pulses: {
@@ -83,12 +85,7 @@ const defaultCategories: Record<string, ProductCategory> = {
     description:
       'Wide range of lentils, beans, and legumes in bulk quantities.',
     image: pulsesImg,
-    items: [
-      { id: '9', name: 'Toor Dal', category: 'pulses' },
-      { id: '10', name: 'Moong Dal', category: 'pulses' },
-      { id: '11', name: 'Chana Dal', category: 'pulses' },
-      { id: '12', name: 'Masoor Dal', category: 'pulses' },
-    ],
+    items: [],
   },
 
   'herbal-powders': {
@@ -96,10 +93,7 @@ const defaultCategories: Record<string, ProductCategory> = {
     description:
       'Natural herbal powders for health, wellness, and beauty.',
     image: herbalImg,
-    items: [
-      { id: '17', name: 'Moringa Powder', category: 'herbal-powders' },
-      { id: '18', name: 'Ashwagandha', category: 'herbal-powders' },
-    ],
+    items: [],
   },
 
   flours: {
@@ -107,47 +101,54 @@ const defaultCategories: Record<string, ProductCategory> = {
     description:
       'Fresh milled flours including wheat, rice, gram, and specialty blends.',
     image: floursImg,
-    items: [
-      { id: '23', name: 'Wheat Flour', category: 'flours' },
-      { id: '24', name: 'Rice Flour', category: 'flours' },
-    ],
+    items: [],
   },
 
   'farming-products': {
     name: 'Farming Products',
-    description: 'Quality farming produce and agricultural products.',
+    description:
+      'Quality farming produce and agricultural products.',
     image: farmingImg,
-    items: [
-      { id: '29', name: 'Basmati Rice', category: 'farming-products' },
-      { id: '30', name: 'Wheat Grain', category: 'farming-products' },
-    ],
+    items: [],
   },
 };
 
 export const ProductProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
+
   const [categories, setCategories] =
-    useState<Record<string, ProductCategory>>({});
+    useState<Record<string, ProductCategory>>(
+      defaultCategories
+    );
 
   const [isLoading, setIsLoading] = useState(true);
 
-  // LOAD DATA
+  // LOAD FIREBASE DATA
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        // ALWAYS FETCH FROM FIREBASE FIRST
-        const firebaseData = await fetchCategoriesFromFirebase();
 
-        const merged: Record<string, ProductCategory> = {
+    const loadData = async () => {
+
+      try {
+
+        const firebaseData =
+          await fetchCategoriesFromFirebase();
+
+        const merged: Record<
+          string,
+          ProductCategory
+        > = {
           ...defaultCategories,
         };
 
         // MERGE FIREBASE DATA
         Object.keys(firebaseData || {}).forEach((key) => {
-          const firebaseCategory = firebaseData[key];
+
+          const firebaseCategory =
+            firebaseData[key];
 
           merged[key] = {
+
             name:
               firebaseCategory?.name ||
               defaultCategories[key]?.name ||
@@ -163,7 +164,9 @@ export const ProductProvider: React.FC<{
               defaultCategories[key]?.image ||
               '',
 
-            items: Array.isArray(firebaseCategory?.items)
+            items: Array.isArray(
+              firebaseCategory?.items
+            )
               ? firebaseCategory.items
               : [],
           };
@@ -171,36 +174,50 @@ export const ProductProvider: React.FC<{
 
         setCategories(merged);
 
-        // UPDATE LOCAL STORAGE
         localStorage.setItem(
           'all_products',
           JSON.stringify(merged)
         );
-      } catch (error) {
-        console.log('Firebase load failed:', error);
 
-        // FALLBACK TO DEFAULTS
+      } catch (error) {
+
+        console.log(
+          'Firebase load failed:',
+          error
+        );
+
         setCategories(defaultCategories);
+
       } finally {
+
         setIsLoading(false);
       }
     };
 
     loadData();
+
   }, []);
 
-  // SAVE TO LOCAL STORAGE + FIREBASE
+  // AUTO SAVE
   useEffect(() => {
+
     if (!isLoading) {
+
       localStorage.setItem(
         'all_products',
         JSON.stringify(categories)
       );
 
-      syncAllCategoriesToFirebase(categories).catch((err) =>
-        console.log('Firebase sync error:', err.message)
+      syncAllCategoriesToFirebase(
+        categories
+      ).catch((err) =>
+        console.log(
+          'Firebase sync error:',
+          err.message
+        )
       );
     }
+
   }, [categories, isLoading]);
 
   // ADD PRODUCT
@@ -209,7 +226,9 @@ export const ProductProvider: React.FC<{
     productName: string,
     imageUrl?: string
   ) => {
+
     setCategories((prev) => {
+
       const updated = { ...prev };
 
       const id = Date.now().toString();
@@ -222,13 +241,18 @@ export const ProductProvider: React.FC<{
       };
 
       if (!updated[category]) {
+
         updated[category] = {
           name: category,
+          description: '',
+          image: '',
           items: [],
         };
       }
 
-      updated[category].items.push(newProduct);
+      updated[category].items.push(
+        newProduct
+      );
 
       return updated;
     });
@@ -239,12 +263,15 @@ export const ProductProvider: React.FC<{
     category: string,
     productId: string
   ) => {
+
     setCategories((prev) => {
+
       const updated = { ...prev };
 
-      updated[category].items = updated[
-        category
-      ].items.filter((p) => p.id !== productId);
+      updated[category].items =
+        updated[category].items.filter(
+          (p) => p.id !== productId
+        );
 
       return updated;
     });
@@ -257,14 +284,18 @@ export const ProductProvider: React.FC<{
     newName: string,
     imageUrl?: string
   ) => {
+
     setCategories((prev) => {
+
       const updated = { ...prev };
 
-      const product = updated[category]?.items.find(
-        (p) => p.id === productId
-      );
+      const product =
+        updated[category]?.items.find(
+          (p) => p.id === productId
+        );
 
       if (product) {
+
         product.name = newName;
 
         if (imageUrl) {
@@ -283,24 +314,29 @@ export const ProductProvider: React.FC<{
     description?: string,
     image?: string
   ) => {
+
     setCategories((prev) => {
+
       const updated = { ...prev };
 
       if (!updated[categoryId]) {
+
         updated[categoryId] = {
+
           name: categoryName,
           description,
           image,
           items: [],
         };
 
-        saveCategoryToFirebase(categoryId, {
-          name: categoryName,
-          description,
-          image,
-          items: [],
-        }).catch((err) =>
-          console.log('Firebase save error:', err.message)
+        saveCategoryToFirebase(
+          categoryId,
+          updated[categoryId]
+        ).catch((err) =>
+          console.log(
+            'Firebase save error:',
+            err.message
+          )
         );
       }
 
@@ -315,18 +351,24 @@ export const ProductProvider: React.FC<{
     description?: string,
     image?: string
   ) => {
+
     setCategories((prev) => {
+
       const updated = { ...prev };
 
       if (updated[categoryId]) {
-        updated[categoryId].name = categoryName;
+
+        updated[categoryId].name =
+          categoryName;
 
         if (description !== undefined) {
-          updated[categoryId].description = description;
+          updated[categoryId].description =
+            description;
         }
 
         if (image !== undefined) {
-          updated[categoryId].image = image;
+          updated[categoryId].image =
+            image;
         }
       }
 
@@ -335,8 +377,12 @@ export const ProductProvider: React.FC<{
   };
 
   // DELETE CATEGORY
-  const deleteCategory = (categoryId: string) => {
+  const deleteCategory = (
+    categoryId: string
+  ) => {
+
     setCategories((prev) => {
+
       const updated = { ...prev };
 
       delete updated[categoryId];
@@ -344,19 +390,32 @@ export const ProductProvider: React.FC<{
       return updated;
     });
 
-    deleteCategoryFromFirebase(categoryId).catch((err) =>
-      console.log('Firebase delete error:', err.message)
+    deleteCategoryFromFirebase(
+      categoryId
+    ).catch((err) =>
+      console.log(
+        'Firebase delete error:',
+        err.message
+      )
     );
   };
 
-  // RELOAD PRODUCTS
+  // RELOAD
   const loadProducts = async () => {
+
     try {
-      const firebaseData = await fetchCategoriesFromFirebase();
+
+      const firebaseData =
+        await fetchCategoriesFromFirebase();
 
       setCategories(firebaseData);
+
     } catch (e) {
-      console.error('Failed to reload products:', e);
+
+      console.error(
+        'Failed to reload products:',
+        e
+      );
     }
   };
 
@@ -379,9 +438,13 @@ export const ProductProvider: React.FC<{
 };
 
 export const useProducts = () => {
-  const context = useContext(ProductContext);
+
+  const context = useContext(
+    ProductContext
+  );
 
   if (!context) {
+
     throw new Error(
       'useProducts must be used within ProductProvider'
     );
