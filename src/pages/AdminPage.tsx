@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Edit2, Plus, LogOut, Lock, Image, Loader } from 'lucide-react';
+import { Trash2, Edit2, Plus, LogOut, Lock, Image, Loader, Check, X } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
 import { useToast } from '@/hooks/use-toast';
-import { loginWithEmail, logoutUser, onAuthChange, isCurrentUserAdmin, getAdminEmail } from '@/services/authService';
+import { loginWithEmail, logoutUser, onAuthChange, getAdminEmail } from '@/services/authService';
 import { AuthUser } from '@/services/authService';
 
 const AdminPanel = () => {
@@ -12,8 +12,8 @@ const AdminPanel = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
-  const [selectedCategory, setSelectedCategory] = useState('spices');
+
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState('');
@@ -22,23 +22,26 @@ const AdminPanel = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
   const [newCategoryImage, setNewCategoryImage] = useState('');
-  
+
+  // ── Category edit state ──────────────────────────────────────────
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
+  const [editCategoryDescription, setEditCategoryDescription] = useState('');
+  const [editCategoryImage, setEditCategoryImage] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+
   const navigate = useNavigate();
-  const { categories, addProduct, deleteProduct, editProduct, addCategory, deleteCategory } = useProducts();
+  const { categories, addProduct, deleteProduct, editProduct, addCategory, editCategory, deleteCategory } = useProducts();
   const { toast } = useToast();
 
-  // Helper function to generate category ID from name
-  const generateCategoryId = (name: string) => {
-    return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  };
+  const generateCategoryId = (name: string) =>
+    name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-  // Listen to auth state changes
   useEffect(() => {
     const unsubscribe = onAuthChange((user) => {
       if (user && user.isAdmin) {
         setCurrentUser(user);
       } else if (user && !user.isAdmin) {
-        // User logged in but not admin - logout
         logoutUser();
         toast({ title: 'Access Denied', description: 'Only admin account can access this panel', variant: 'destructive' });
       } else {
@@ -46,9 +49,15 @@ const AdminPanel = () => {
       }
       setIsAuthenticating(false);
     });
-
     return () => unsubscribe();
   }, [toast]);
+
+  // Auto-select first category when categories load
+  useEffect(() => {
+    if (!selectedCategory && Object.keys(categories).length > 0) {
+      setSelectedCategory(Object.keys(categories)[0]);
+    }
+  }, [categories, selectedCategory]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +65,7 @@ const AdminPanel = () => {
     try {
       const user = await loginWithEmail(email, password);
       setCurrentUser(user);
-      toast({ title: 'Login successful', description: `Welcome ${user.email}!`, variant: 'default' });
+      toast({ title: 'Login successful', description: `Welcome ${user.email}!` });
       setEmail('');
       setPassword('');
     } catch (error: any) {
@@ -78,17 +87,14 @@ const AdminPanel = () => {
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        callback(dataUrl);
-        toast({ title: 'Image selected', description: 'Image will be saved with the product' });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  toast({
+    title: 'Use image URL instead',
+    description: 'Please paste a direct image URL (e.g. from Google Images, Unsplash, Imgur). File upload creates large files that slow down the site.',
+    variant: 'destructive',
+  });
+  // Clear the input
+  e.target.value = '';
+};
 
   const handleAddProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +131,44 @@ const AdminPanel = () => {
     setEditImage('');
   };
 
-  // Loading state
+  // ── Category edit handlers ────────────────────────────────────────
+  const handleStartEditCategory = (id: string) => {
+    setEditingCategoryId(id);
+    setEditCategoryName(categories[id]?.name || '');
+    setEditCategoryDescription(categories[id]?.description || '');
+    setEditCategoryImage(categories[id]?.image || '');
+  };
+
+  const handleCancelEditCategory = () => {
+    setEditingCategoryId(null);
+    setEditCategoryName('');
+    setEditCategoryDescription('');
+    setEditCategoryImage('');
+  };
+
+  const handleSaveEditCategory = async () => {
+    if (!editCategoryName.trim()) {
+      toast({ title: 'Category name cannot be empty', variant: 'destructive' });
+      return;
+    }
+    setIsSavingCategory(true);
+    try {
+      await editCategory(
+        editingCategoryId!,
+        editCategoryName.trim(),
+        editCategoryDescription || undefined,
+        editCategoryImage || undefined
+      );
+      toast({ title: 'Category updated successfully' });
+      handleCancelEditCategory();
+    } catch (error: any) {
+      toast({ title: 'Failed to update category', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  // ── Auth loading ──────────────────────────────────────────────────
   if (isAuthenticating) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
@@ -137,7 +180,7 @@ const AdminPanel = () => {
     );
   }
 
-  // Login UI
+  // ── Login UI ──────────────────────────────────────────────────────
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
@@ -149,9 +192,7 @@ const AdminPanel = () => {
           </div>
           <h1 className="text-2xl font-bold text-center mb-2">Admin Panel</h1>
           <p className="text-muted-foreground text-center mb-2 text-sm">Firebase Authentication</p>
-          <p className="text-muted-foreground text-center mb-6 text-xs">
-            Admin Email: {getAdminEmail()}
-          </p>
+          <p className="text-muted-foreground text-center mb-6 text-xs">Admin Email: {getAdminEmail()}</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -194,7 +235,7 @@ const AdminPanel = () => {
     );
   }
 
-  // Admin Dashboard UI
+  // ── Admin Dashboard ───────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-muted/50">
       <nav className="bg-card border-b border-border shadow-sm">
@@ -215,45 +256,148 @@ const AdminPanel = () => {
 
       <div className="container-main py-8">
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Category Sidebar */}
+
+          {/* ── Category Sidebar ─────────────────────────────────── */}
           <div className="lg:col-span-1">
             <div className="bg-card border border-border rounded-xl p-4 shadow-card sticky top-4 space-y-4">
               <div>
                 <h3 className="font-semibold text-foreground mb-4">Categories</h3>
                 <div className="space-y-2">
                   {Object.entries(categories).map(([id, cat]) => (
-                    <div key={id} className="flex items-center gap-2 group">
-                      <button
-                        onClick={() => setSelectedCategory(id)}
-                        className={`flex-1 text-left px-4 py-2 rounded-lg transition-colors ${
-                          selectedCategory === id
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-foreground hover:bg-muted/80'
-                        }`}
-                      >
-                        {cat.name}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Delete category "${cat.name}"? All products in this category will be deleted.`)) {
-                            deleteCategory(id);
-                            if (selectedCategory === id) {
-                              setSelectedCategory(Object.keys(categories)[0] || 'spices');
-                            }
-                            toast({ title: 'Category deleted successfully' });
+                    <div key={id} className="space-y-2">
+
+                      {/* Category row */}
+                      <div className="flex items-center gap-2 group">
+                        <button
+                          onClick={() => {
+                            setSelectedCategory(id);
+                            handleCancelEditCategory();
+                          }}
+                          className={`flex-1 text-left px-4 py-2 rounded-lg transition-colors text-sm ${
+                            selectedCategory === id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-foreground hover:bg-muted/80'
+                          }`}
+                        >
+                          {cat.name}
+                        </button>
+
+                        {/* Edit button */}
+                        <button
+                          onClick={() =>
+                            editingCategoryId === id
+                              ? handleCancelEditCategory()
+                              : handleStartEditCategory(id)
                           }
-                        }}
-                        className="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Delete category"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                          className="p-2 rounded-lg bg-blue-600/10 text-blue-600 hover:bg-blue-600/20 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Edit category"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+
+                        {/* Delete button */}
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Delete category "${cat.name}"? All products in this category will be deleted.`)) {
+                              deleteCategory(id);
+                              if (selectedCategory === id) {
+                                const remaining = Object.keys(categories).filter((k) => k !== id);
+                                setSelectedCategory(remaining[0] || '');
+                              }
+                              if (editingCategoryId === id) handleCancelEditCategory();
+                              toast({ title: 'Category deleted successfully' });
+                            }
+                          }}
+                          className="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Delete category"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
+                      {/* Inline edit form — expands below the category row */}
+                      {editingCategoryId === id && (
+                        <div className="ml-1 p-3 rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900 space-y-2">
+                          <p className="text-xs font-semibold text-blue-600 mb-1">Edit Category</p>
+
+                          <input
+                            type="text"
+                            placeholder="Category Name"
+                            value={editCategoryName}
+                            onChange={(e) => setEditCategoryName(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                          />
+
+                          <textarea
+                            placeholder="Category Description"
+                            value={editCategoryDescription}
+                            onChange={(e) => setEditCategoryDescription(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none"
+                            rows={2}
+                          />
+
+                          <div className="flex gap-2">
+                            <label className="flex items-center justify-center px-3 py-2 rounded-lg border-2 border-dashed border-border bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+                              <Image size={14} className="text-primary" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageUpload(e, setEditCategoryImage)}
+                                className="hidden"
+                              />
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Or paste image URL"
+                              value={editCategoryImage}
+                              onChange={(e) => setEditCategoryImage(e.target.value)}
+                              className="flex-1 px-2 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-xs"
+                            />
+                          </div>
+
+                          {editCategoryImage && (
+                            <div className="p-2 rounded-lg bg-muted">
+                              <img
+                                src={editCategoryImage}
+                                alt="Preview"
+                                className="h-12 w-12 object-cover rounded"
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={handleSaveEditCategory}
+                              disabled={isSavingCategory}
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-green-600 text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                            >
+                              {isSavingCategory
+                                ? <Loader size={12} className="animate-spin" />
+                                : <Check size={12} />}
+                              {isSavingCategory ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              onClick={handleCancelEditCategory}
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
+                            >
+                              <X size={12} />
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
+
+                  {Object.keys(categories).length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No categories yet. Add one below.
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Add Category Section */}
+              {/* ── Add Category Section ──────────────────────────── */}
               <div className="border-t border-border pt-4">
                 <h4 className="font-semibold text-foreground mb-3 text-sm">Add New Category</h4>
                 <form
@@ -276,26 +420,22 @@ const AdminPanel = () => {
                   }}
                   className="space-y-3"
                 >
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Category Name"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <textarea
-                      placeholder="Category Description"
-                      value={newCategoryDescription}
-                      onChange={(e) => setNewCategoryDescription(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none"
-                      rows={2}
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Category Name"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                  />
+                  <textarea
+                    placeholder="Category Description"
+                    value={newCategoryDescription}
+                    onChange={(e) => setNewCategoryDescription(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none"
+                    rows={2}
+                  />
                   <div className="flex gap-2">
-                    <label className="flex-1 flex items-center justify-center px-2 py-2 rounded-lg border-2 border-dashed border-border bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+                    <label className="flex items-center justify-center px-3 py-2 rounded-lg border-2 border-dashed border-border bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
                       <Image size={14} className="text-primary" />
                       <input
                         type="file"
@@ -329,8 +469,9 @@ const AdminPanel = () => {
             </div>
           </div>
 
-          {/* Main Content */}
+          {/* ── Main Content ──────────────────────────────────────── */}
           <div className="lg:col-span-3 space-y-6">
+
             {/* Add Product Form */}
             <div className="bg-card border border-border rounded-xl p-6 shadow-card">
               <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -353,8 +494,7 @@ const AdminPanel = () => {
                     Add
                   </button>
                 </div>
-                
-                {/* Image Upload Section */}
+
                 <div className="border-t border-border pt-4">
                   <p className="text-sm font-medium text-foreground mb-3">Product Image (Optional)</p>
                   <div className="flex gap-2">
@@ -390,7 +530,7 @@ const AdminPanel = () => {
             {/* Products List */}
             <div className="bg-card border border-border rounded-xl p-6 shadow-card">
               <h2 className="text-xl font-semibold text-foreground mb-4">
-                {categories[selectedCategory]?.name} Products
+                {categories[selectedCategory]?.name || 'Select a category'} Products
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -414,7 +554,7 @@ const AdminPanel = () => {
                                 placeholder="Product name"
                               />
                               <div className="flex gap-2">
-                                <label className="flex-1 flex items-center justify-center px-2 py-2 rounded-lg border border-dashed border-border bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
+                                <label className="flex items-center justify-center px-2 py-2 rounded-lg border border-dashed border-border bg-muted/50 cursor-pointer hover:bg-muted transition-colors">
                                   <Image size={14} className="text-primary" />
                                   <input
                                     type="file"
@@ -478,7 +618,7 @@ const AdminPanel = () => {
                   </tbody>
                 </table>
               </div>
-              {categories[selectedCategory]?.items.length === 0 && (
+              {(!categories[selectedCategory] || categories[selectedCategory]?.items.length === 0) && (
                 <div className="text-center py-8 text-muted-foreground">
                   No products in this category yet
                 </div>
