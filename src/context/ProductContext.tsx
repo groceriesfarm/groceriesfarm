@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
-
 import {
   fetchCategoriesFromFirebase,
   saveCategoryToFirebase,
@@ -41,9 +40,8 @@ interface ProductContextType {
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
 export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Start with empty — everything comes from Firebase
   const [categories, setCategories] = useState<Record<string, ProductCategory>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Start false - cache loads instantly
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -51,7 +49,21 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => { isMounted.current = false; };
   }, []);
 
-  // ─── LOAD FROM FIREBASE ───────────────────────────────────────────
+  // 🚀 INSTANT CACHE LOAD ON MOUNT
+  useEffect(() => {
+    const cached = localStorage.getItem('all_products');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setCategories(parsed);
+      } catch {
+        setCategories({});
+      }
+    }
+    // Background Firebase refresh
+    loadProducts().catch(console.error);
+  }, []);
+
   const loadProducts = async () => {
     try {
       setIsLoading(true);
@@ -73,25 +85,11 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem('all_products', JSON.stringify(loaded));
     } catch (error) {
       console.error('Firebase load failed:', error);
-      if (!isMounted.current) return;
-      // Fallback to localStorage cache if Firebase fails
-      const cached = localStorage.getItem('all_products');
-      if (cached) {
-        try { setCategories(JSON.parse(cached)); } catch { setCategories({}); }
-      } else {
-        setCategories({});
-      }
     } finally {
       if (isMounted.current) setIsLoading(false);
     }
   };
 
-  // ─── INITIAL LOAD ─────────────────────────────────────────────────
-  useEffect(() => {
-    loadProducts();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── ADD PRODUCT ──────────────────────────────────────────────────
   const addProduct = (category: string, productName: string, imageUrl?: string) => {
     const newProduct: Product = {
       id: Date.now().toString(),
@@ -108,13 +106,12 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...updated[category],
         items: [...updated[category].items, newProduct],
       };
-      saveCategoryToFirebase(category, updated[category])
-        .catch((err) => console.error('Firebase addProduct error:', err));
+      saveCategoryToFirebase(category, updated[category]).catch(console.error);
+      localStorage.setItem('all_products', JSON.stringify(updated));
       return updated;
     });
   };
 
-  // ─── DELETE PRODUCT ───────────────────────────────────────────────
   const deleteProduct = (category: string, productId: string) => {
     setCategories((prev) => {
       const updated = { ...prev };
@@ -122,13 +119,12 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...updated[category],
         items: updated[category].items.filter((p) => p.id !== productId),
       };
-      saveCategoryToFirebase(category, updated[category])
-        .catch((err) => console.error('Firebase deleteProduct error:', err));
+      saveCategoryToFirebase(category, updated[category]).catch(console.error);
+      localStorage.setItem('all_products', JSON.stringify(updated));
       return updated;
     });
   };
 
-  // ─── EDIT PRODUCT ─────────────────────────────────────────────────
   const editProduct = (category: string, productId: string, newName: string, imageUrl?: string) => {
     setCategories((prev) => {
       const updated = { ...prev };
@@ -140,13 +136,12 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
             : p
         ),
       };
-      saveCategoryToFirebase(category, updated[category])
-        .catch((err) => console.error('Firebase editProduct error:', err));
+      saveCategoryToFirebase(category, updated[category]).catch(console.error);
+      localStorage.setItem('all_products', JSON.stringify(updated));
       return updated;
     });
   };
 
-  // ─── ADD CATEGORY ─────────────────────────────────────────────────
   const addCategory = async (
     categoryId: string,
     categoryName: string,
@@ -159,15 +154,14 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
       image: image || '',
       items: [],
     };
-    // Write to Firebase first, then update local state
     await saveCategoryToFirebase(categoryId, newCategory);
-    setCategories((prev) => ({
-      ...prev,
-      [categoryId]: newCategory,
-    }));
+    setCategories((prev) => {
+      const updated = { ...prev, [categoryId]: newCategory };
+      localStorage.setItem('all_products', JSON.stringify(updated));
+      return updated;
+    });
   };
 
-  // ─── EDIT CATEGORY ────────────────────────────────────────────────
   const editCategory = async (
     categoryId: string,
     categoryName: string,
@@ -176,28 +170,25 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   ): Promise<void> => {
     setCategories((prev) => {
       if (!prev[categoryId]) return prev;
-      const updated = {
-        ...prev,
-        [categoryId]: {
-          ...prev[categoryId],
-          name: categoryName,
-          ...(description !== undefined && { description }),
-          ...(image !== undefined && { image }),
-        },
+      const updatedCategory = {
+        ...prev[categoryId],
+        name: categoryName,
+        ...(description !== undefined && { description }),
+        ...(image !== undefined && { image }),
       };
-      saveCategoryToFirebase(categoryId, updated[categoryId])
-        .catch((err) => console.error('Firebase editCategory error:', err));
+      const updated = { ...prev, [categoryId]: updatedCategory };
+      saveCategoryToFirebase(categoryId, updatedCategory).catch(console.error);
+      localStorage.setItem('all_products', JSON.stringify(updated));
       return updated;
     });
   };
 
-  // ─── DELETE CATEGORY ──────────────────────────────────────────────
   const deleteCategory = (categoryId: string) => {
-    deleteCategoryFromFirebase(categoryId)
-      .catch((err) => console.error('Firebase deleteCategory error:', err));
+    deleteCategoryFromFirebase(categoryId).catch(console.error);
     setCategories((prev) => {
       const updated = { ...prev };
       delete updated[categoryId];
+      localStorage.setItem('all_products', JSON.stringify(updated));
       return updated;
     });
   };

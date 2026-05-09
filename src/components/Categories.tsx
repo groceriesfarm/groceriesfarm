@@ -5,22 +5,15 @@ import { useProducts } from '@/context/ProductContext';
 
 const Categories = () => {
   const { categories, isLoading, loadProducts } = useProducts();
+  const categoryEntries = Object.entries(categories);
 
   useEffect(() => {
     loadProducts();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') loadProducts();
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const categoryEntries = Object.entries(categories);
+  }, [loadProducts]);
 
   return (
     <section id="categories" className="section-padding bg-section-alt">
       <div className="container-main">
-
         <div className="text-center mb-12 reveal">
           <span className="text-xs font-semibold tracking-wider uppercase text-primary">
             What We Offer
@@ -33,32 +26,17 @@ const Categories = () => {
           </p>
         </div>
 
-        {/* Loading skeleton */}
-        {isLoading && categoryEntries.length === 0 && (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="rounded-xl overflow-hidden bg-card border border-border animate-pulse">
-                <div className="h-48 bg-muted" />
-                <div className="p-5 space-y-3">
-                  <div className="h-4 bg-muted rounded w-3/4" />
-                  <div className="h-3 bg-muted rounded w-1/2" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && categoryEntries.length === 0 && (
+        {/* Show skeleton ONLY if truly no data (not loading) */}
+        {categoryEntries.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <LayoutGrid className="w-12 h-12 text-muted-foreground mb-4" />
+            <LayoutGrid className="w-12 h-12 text-muted-foreground mb-4 animate-pulse" />
             <p className="text-muted-foreground">
-              No categories yet. Add some from the Admin panel.
+              Loading categories...
             </p>
           </div>
         )}
 
-        {/* Categories grid */}
+        {/* Categories grid - shows instantly from cache */}
         {categoryEntries.length > 0 && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {categoryEntries.map(([id, cat], i) => (
@@ -100,7 +78,6 @@ const Categories = () => {
             ))}
           </div>
         )}
-
       </div>
     </section>
   );
