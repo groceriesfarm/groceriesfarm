@@ -1,24 +1,21 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, LayoutGrid } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
 
 const Categories = () => {
-  const { categories, loadProducts } = useProducts();
+  const { categories, isLoading, loadProducts } = useProducts();
 
   useEffect(() => {
-    // Fresh fetch every time this component mounts (home or categories page)
     loadProducts();
-
-    // Re-fetch when user returns to this tab
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        loadProducts();
-      }
+      if (document.visibilityState === 'visible') loadProducts();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const categoryEntries = Object.entries(categories);
 
   return (
     <section id="categories" className="section-padding bg-section-alt">
@@ -36,45 +33,73 @@ const Categories = () => {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Object.entries(categories).map(([id, cat], i) => (
-            <div
-              key={id}
-              className="group reveal rounded-xl overflow-hidden bg-card shadow-card border border-border hover:shadow-soft transition-all duration-300 hover:-translate-y-1"
-              style={{ transitionDelay: `${i * 0.05}s` }}
-            >
-              <div className="relative h-48 overflow-hidden">
-                <img
-                  src={
-                    cat.image ||
-                    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT1gkutdgQHhRK_4bHIaWtDRkIgd1Fgquoj-g&s'
-                  }
-                  alt={cat.name}
-                  loading="lazy"
-                  width={800}
-                  height={600}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-foreground/40 to-transparent" />
-                <h3 className="absolute bottom-4 left-4 font-display text-xl font-bold text-primary-foreground">
-                  {cat.name}
-                </h3>
+        {/* Loading skeleton */}
+        {isLoading && categoryEntries.length === 0 && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="rounded-xl overflow-hidden bg-card border border-border animate-pulse">
+                <div className="h-48 bg-muted" />
+                <div className="p-5 space-y-3">
+                  <div className="h-4 bg-muted rounded w-3/4" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
+                </div>
               </div>
-              <div className="p-5">
-                <p className="text-sm text-muted-foreground mb-4">
-                  {cat.description || 'Premium wholesale products'}
-                </p>
-                <Link
-                  to={`/products?category=${id}`}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-3 transition-all"
-                >
-                  Explore Products
-                  <ArrowRight size={14} />
-                </Link>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && categoryEntries.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <LayoutGrid className="w-12 h-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              No categories yet. Add some from the Admin panel.
+            </p>
+          </div>
+        )}
+
+        {/* Categories grid */}
+        {categoryEntries.length > 0 && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categoryEntries.map(([id, cat], i) => (
+              <div
+                key={id}
+                className="group reveal rounded-xl overflow-hidden bg-card shadow-card border border-border hover:shadow-soft transition-all duration-300 hover:-translate-y-1"
+                style={{ transitionDelay: `${i * 0.05}s` }}
+              >
+                <div className="relative h-48 overflow-hidden">
+                  <img
+                    src={
+                      cat.image ||
+                      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT1gkutdgQHhRK_4bHIaWtDRkIgd1Fgquoj-g&s'
+                    }
+                    alt={cat.name}
+                    loading="lazy"
+                    width={800}
+                    height={600}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-foreground/40 to-transparent" />
+                  <h3 className="absolute bottom-4 left-4 font-display text-xl font-bold text-primary-foreground">
+                    {cat.name}
+                  </h3>
+                </div>
+                <div className="p-5">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {cat.description || 'Premium wholesale products'}
+                  </p>
+                  <Link
+                    to={`/products?category=${id}`}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-3 transition-all"
+                  >
+                    Explore Products
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
       </div>
     </section>

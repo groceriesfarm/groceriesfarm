@@ -6,12 +6,6 @@ import React, {
   useRef,
 } from 'react';
 
-import spicesImg from '@/assets/category-spices.jpg';
-import pulsesImg from '@/assets/category-pulses.jpg';
-import herbalImg from '@/assets/category-herbal.jpg';
-import floursImg from '@/assets/category-flours.jpg';
-import farmingImg from '@/assets/category-farming.jpg';
-
 import {
   fetchCategoriesFromFirebase,
   saveCategoryToFirebase,
@@ -46,46 +40,9 @@ interface ProductContextType {
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
-// Default categories use LOCAL images (never written to Firebase)
-// Firebase only stores admin-added categories with URL-based images
-const defaultCategories: Record<string, ProductCategory> = {
-  spices: {
-    name: 'Spices',
-    description: 'Premium quality whole and ground spices sourced directly from farms.',
-    image: spicesImg,
-    items: [],
-  },
-  pulses: {
-    name: 'Pulses',
-    description: 'Wide range of lentils, beans, and legumes in bulk quantities.',
-    image: pulsesImg,
-    items: [],
-  },
-  'herbal-powders': {
-    name: 'Herbal Powders',
-    description: 'Natural herbal powders for health, wellness, and beauty.',
-    image: herbalImg,
-    items: [],
-  },
-  flours: {
-    name: 'Flours',
-    description: 'Fresh milled flours including wheat, rice, gram, and specialty blends.',
-    image: floursImg,
-    items: [],
-  },
-  'farming-products': {
-    name: 'Farming Products',
-    description: 'Quality farming produce and agricultural products.',
-    image: farmingImg,
-    items: [],
-  },
-};
-
-// IDs of built-in default categories — these are never written to Firebase
-const DEFAULT_CATEGORY_IDS = new Set(Object.keys(defaultCategories));
-
 export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [categories, setCategories] = useState<Record<string, ProductCategory>>(defaultCategories);
+  // Start with empty — everything comes from Firebase
+  const [categories, setCategories] = useState<Record<string, ProductCategory>>({});
   const [isLoading, setIsLoading] = useState(true);
   const isMounted = useRef(true);
 
@@ -95,48 +52,34 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   // ─── LOAD FROM FIREBASE ───────────────────────────────────────────
-  // Merges Firebase data (admin-added categories + updated items) with
-  // defaultCategories (which keep their local asset images).
   const loadProducts = async () => {
     try {
       setIsLoading(true);
       const firebaseData = await fetchCategoriesFromFirebase();
-
       if (!isMounted.current) return;
 
-      // Start with defaults so local images are always preserved
-      const merged: Record<string, ProductCategory> = { ...defaultCategories };
-
+      const loaded: Record<string, ProductCategory> = {};
       Object.keys(firebaseData || {}).forEach((key) => {
         const fc = firebaseData[key];
-        if (DEFAULT_CATEGORY_IDS.has(key)) {
-          // For default categories: only update items from Firebase,
-          // keep local name/description/image so assets are never broken
-          merged[key] = {
-            ...defaultCategories[key],
-            items: Array.isArray(fc?.items) ? fc.items : [],
-          };
-        } else {
-          // For admin-added categories: use everything from Firebase
-          merged[key] = {
-            name: fc?.name || key,
-            description: fc?.description || 'Premium wholesale products',
-            image: fc?.image || '',
-            items: Array.isArray(fc?.items) ? fc.items : [],
-          };
-        }
+        loaded[key] = {
+          name: fc?.name || key,
+          description: fc?.description || '',
+          image: fc?.image || '',
+          items: Array.isArray(fc?.items) ? fc.items : [],
+        };
       });
 
-      setCategories(merged);
-      localStorage.setItem('all_products', JSON.stringify(merged));
+      setCategories(loaded);
+      localStorage.setItem('all_products', JSON.stringify(loaded));
     } catch (error) {
       console.error('Firebase load failed:', error);
       if (!isMounted.current) return;
+      // Fallback to localStorage cache if Firebase fails
       const cached = localStorage.getItem('all_products');
       if (cached) {
-        try { setCategories(JSON.parse(cached)); } catch { setCategories(defaultCategories); }
+        try { setCategories(JSON.parse(cached)); } catch { setCategories({}); }
       } else {
-        setCategories(defaultCategories);
+        setCategories({});
       }
     } finally {
       if (isMounted.current) setIsLoading(false);
@@ -165,12 +108,8 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...updated[category],
         items: [...updated[category].items, newProduct],
       };
-      // Write only items to Firebase for this category
-      saveCategoryToFirebase(category, {
-        ...updated[category],
-        // Never send local asset objects to Firebase
-        image: DEFAULT_CATEGORY_IDS.has(category) ? '' : (updated[category].image || ''),
-      }).catch((err) => console.error('Firebase addProduct error:', err));
+      saveCategoryToFirebase(category, updated[category])
+        .catch((err) => console.error('Firebase addProduct error:', err));
       return updated;
     });
   };
@@ -183,10 +122,8 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...updated[category],
         items: updated[category].items.filter((p) => p.id !== productId),
       };
-      saveCategoryToFirebase(category, {
-        ...updated[category],
-        image: DEFAULT_CATEGORY_IDS.has(category) ? '' : (updated[category].image || ''),
-      }).catch((err) => console.error('Firebase deleteProduct error:', err));
+      saveCategoryToFirebase(category, updated[category])
+        .catch((err) => console.error('Firebase deleteProduct error:', err));
       return updated;
     });
   };
@@ -203,10 +140,8 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
             : p
         ),
       };
-      saveCategoryToFirebase(category, {
-        ...updated[category],
-        image: DEFAULT_CATEGORY_IDS.has(category) ? '' : (updated[category].image || ''),
-      }).catch((err) => console.error('Firebase editProduct error:', err));
+      saveCategoryToFirebase(category, updated[category])
+        .catch((err) => console.error('Firebase editProduct error:', err));
       return updated;
     });
   };
@@ -224,12 +159,12 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
       image: image || '',
       items: [],
     };
-    // Write to Firebase first, then update state
+    // Write to Firebase first, then update local state
     await saveCategoryToFirebase(categoryId, newCategory);
-    setCategories((prev) => {
-      if (prev[categoryId]) return prev;
-      return { ...prev, [categoryId]: newCategory };
-    });
+    setCategories((prev) => ({
+      ...prev,
+      [categoryId]: newCategory,
+    }));
   };
 
   // ─── EDIT CATEGORY ────────────────────────────────────────────────
@@ -250,10 +185,8 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
           ...(image !== undefined && { image }),
         },
       };
-      saveCategoryToFirebase(categoryId, {
-        ...updated[categoryId],
-        image: DEFAULT_CATEGORY_IDS.has(categoryId) ? '' : (updated[categoryId].image || ''),
-      }).catch((err) => console.error('Firebase editCategory error:', err));
+      saveCategoryToFirebase(categoryId, updated[categoryId])
+        .catch((err) => console.error('Firebase editCategory error:', err));
       return updated;
     });
   };
