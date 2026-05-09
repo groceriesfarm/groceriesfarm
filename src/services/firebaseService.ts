@@ -15,22 +15,22 @@ export interface FirebaseCategory extends ProductCategory {
   id?: string;
 }
 
-// Helper function to sanitize category data (remove undefined values)
 const sanitizeCategory = (category: ProductCategory) => {
-  // Convert image to string if it's an object (imported asset)
   let imageToSave = category.image;
-  if (typeof imageToSave === 'object' && imageToSave !== null) {
-    imageToSave = String(imageToSave);
+
+  // If image is a local imported asset object (not a URL string), don't save it
+  // Local assets can't be stored in Firestore and should stay client-side only
+  if (typeof imageToSave !== 'string' || imageToSave.startsWith('[object')) {
+    imageToSave = '';
   }
-  
-  // Sanitize items array - remove undefined values from each product
+
   const sanitizedItems = (category.items || []).map((item) => ({
     id: item.id || '',
     name: item.name || '',
     category: item.category || '',
-    image: item.image ? (typeof item.image === 'object' ? String(item.image) : item.image) : '',
+    image: typeof item.image === 'string' ? item.image : '',
   }));
-  
+
   return {
     name: category.name || '',
     description: category.description || '',
@@ -39,12 +39,10 @@ const sanitizeCategory = (category: ProductCategory) => {
   };
 };
 
-// Get all categories and products from Firestore
 export const fetchCategoriesFromFirebase = async (): Promise<Record<string, ProductCategory>> => {
   try {
     const categoriesRef = collection(db, CATEGORIES_COLLECTION);
     const snapshot = await getDocs(categoriesRef);
-    
     const categories: Record<string, ProductCategory> = {};
     snapshot.forEach((doc) => {
       const data = doc.data();
@@ -55,7 +53,6 @@ export const fetchCategoriesFromFirebase = async (): Promise<Record<string, Prod
         items: data.items || [],
       };
     });
-    
     return categories;
   } catch (error) {
     console.error('Error fetching categories from Firebase:', error);
@@ -63,7 +60,6 @@ export const fetchCategoriesFromFirebase = async (): Promise<Record<string, Prod
   }
 };
 
-// Save a single category to Firestore
 export const saveCategoryToFirebase = async (
   categoryId: string,
   category: ProductCategory
@@ -71,7 +67,6 @@ export const saveCategoryToFirebase = async (
   try {
     const categoryRef = doc(db, CATEGORIES_COLLECTION, categoryId);
     const sanitized = sanitizeCategory(category);
-    
     await setDoc(categoryRef, {
       ...sanitized,
       updatedAt: new Date().toISOString(),
@@ -82,7 +77,6 @@ export const saveCategoryToFirebase = async (
   }
 };
 
-// Delete a category from Firestore
 export const deleteCategoryFromFirebase = async (categoryId: string): Promise<void> => {
   try {
     const categoryRef = doc(db, CATEGORIES_COLLECTION, categoryId);
@@ -93,32 +87,26 @@ export const deleteCategoryFromFirebase = async (categoryId: string): Promise<vo
   }
 };
 
-// Sync all categories to Firestore (batch operation)
 export const syncAllCategoriesToFirebase = async (
   categories: Record<string, ProductCategory>
 ): Promise<void> => {
   try {
     const batch = writeBatch(db);
-    
     Object.entries(categories).forEach(([categoryId, category]) => {
       const categoryRef = doc(db, CATEGORIES_COLLECTION, categoryId);
       const sanitized = sanitizeCategory(category);
-      
       batch.set(categoryRef, {
         ...sanitized,
         updatedAt: new Date().toISOString(),
       });
     });
-    
     await batch.commit();
-    console.log('All categories synced to Firebase');
   } catch (error) {
     console.error('Error syncing categories to Firebase:', error);
     throw error;
   }
 };
 
-// Export data to JSON (for backup/download)
 export const exportCategoriesAsJSON = (categories: Record<string, ProductCategory>) => {
   const jsonStr = JSON.stringify(categories, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -130,7 +118,6 @@ export const exportCategoriesAsJSON = (categories: Record<string, ProductCategor
   URL.revokeObjectURL(url);
 };
 
-// Import data from JSON file
 export const importCategoriesFromJSON = (file: File): Promise<Record<string, ProductCategory>> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

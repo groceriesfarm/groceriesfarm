@@ -7,20 +7,17 @@ const Categories = () => {
   const { categories, loadProducts } = useProducts();
 
   useEffect(() => {
-    // Always fetch fresh from Firebase when homepage mounts
+    // Fresh fetch every time this component mounts (home or categories page)
     loadProducts();
 
-    // Re-fetch when user returns to this browser tab
+    // Re-fetch when user returns to this tab
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         loadProducts();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

@@ -46,6 +46,8 @@ interface ProductContextType {
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
+// Default categories use LOCAL images (never written to Firebase)
+// Firebase only stores admin-added categories with URL-based images
 const defaultCategories: Record<string, ProductCategory> = {
   spices: {
     name: 'Spices',
@@ -79,6 +81,9 @@ const defaultCategories: Record<string, ProductCategory> = {
   },
 };
 
+// IDs of built-in default categories — these are never written to Firebase
+const DEFAULT_CATEGORY_IDS = new Set(Object.keys(defaultCategories));
+
 export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [categories, setCategories] = useState<Record<string, ProductCategory>>(defaultCategories);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,26 +94,37 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => { isMounted.current = false; };
   }, []);
 
-  // ─── THE ONLY WAY DATA IS READ FROM FIREBASE ─────────────────────
-  // This function ONLY reads. It never triggers any write back.
-  // No useEffect watches `categories` and syncs — that was the bug.
+  // ─── LOAD FROM FIREBASE ───────────────────────────────────────────
+  // Merges Firebase data (admin-added categories + updated items) with
+  // defaultCategories (which keep their local asset images).
   const loadProducts = async () => {
     try {
       setIsLoading(true);
       const firebaseData = await fetchCategoriesFromFirebase();
 
-      if (!isMounted.current) return; // Component unmounted, abort
+      if (!isMounted.current) return;
 
+      // Start with defaults so local images are always preserved
       const merged: Record<string, ProductCategory> = { ...defaultCategories };
 
       Object.keys(firebaseData || {}).forEach((key) => {
         const fc = firebaseData[key];
-        merged[key] = {
-          name: fc?.name || defaultCategories[key]?.name || key,
-          description: fc?.description || defaultCategories[key]?.description || 'Premium wholesale products',
-          image: fc?.image || defaultCategories[key]?.image || '',
-          items: Array.isArray(fc?.items) ? fc.items : [],
-        };
+        if (DEFAULT_CATEGORY_IDS.has(key)) {
+          // For default categories: only update items from Firebase,
+          // keep local name/description/image so assets are never broken
+          merged[key] = {
+            ...defaultCategories[key],
+            items: Array.isArray(fc?.items) ? fc.items : [],
+          };
+        } else {
+          // For admin-added categories: use everything from Firebase
+          merged[key] = {
+            name: fc?.name || key,
+            description: fc?.description || 'Premium wholesale products',
+            image: fc?.image || '',
+            items: Array.isArray(fc?.items) ? fc.items : [],
+          };
+        }
       });
 
       setCategories(merged);
@@ -116,7 +132,6 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (error) {
       console.error('Firebase load failed:', error);
       if (!isMounted.current) return;
-      // Fallback to localStorage cache
       const cached = localStorage.getItem('all_products');
       if (cached) {
         try { setCategories(JSON.parse(cached)); } catch { setCategories(defaultCategories); }
@@ -133,19 +148,14 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadProducts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── NO AUTO-SYNC EFFECT — writes go directly to Firebase ─────────
-  // Removed the categories useEffect that was racing with loadProducts.
-  // Every write function below calls Firebase directly and immediately.
-
-  // ─── ADD PRODUCT ─────────────────────────────────────────────────
+  // ─── ADD PRODUCT ──────────────────────────────────────────────────
   const addProduct = (category: string, productName: string, imageUrl?: string) => {
     const newProduct: Product = {
       id: Date.now().toString(),
       name: productName,
       category,
-      image: imageUrl,
+      image: imageUrl || '',
     };
-
     setCategories((prev) => {
       const updated = { ...prev };
       if (!updated[category]) {
@@ -155,9 +165,12 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...updated[category],
         items: [...updated[category].items, newProduct],
       };
-      // Write directly to Firebase with the new state
-      saveCategoryToFirebase(category, updated[category])
-        .catch((err) => console.error('Firebase addProduct error:', err));
+      // Write only items to Firebase for this category
+      saveCategoryToFirebase(category, {
+        ...updated[category],
+        // Never send local asset objects to Firebase
+        image: DEFAULT_CATEGORY_IDS.has(category) ? '' : (updated[category].image || ''),
+      }).catch((err) => console.error('Firebase addProduct error:', err));
       return updated;
     });
   };
@@ -170,8 +183,10 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...updated[category],
         items: updated[category].items.filter((p) => p.id !== productId),
       };
-      saveCategoryToFirebase(category, updated[category])
-        .catch((err) => console.error('Firebase deleteProduct error:', err));
+      saveCategoryToFirebase(category, {
+        ...updated[category],
+        image: DEFAULT_CATEGORY_IDS.has(category) ? '' : (updated[category].image || ''),
+      }).catch((err) => console.error('Firebase deleteProduct error:', err));
       return updated;
     });
   };
@@ -188,8 +203,10 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
             : p
         ),
       };
-      saveCategoryToFirebase(category, updated[category])
-        .catch((err) => console.error('Firebase editProduct error:', err));
+      saveCategoryToFirebase(category, {
+        ...updated[category],
+        image: DEFAULT_CATEGORY_IDS.has(category) ? '' : (updated[category].image || ''),
+      }).catch((err) => console.error('Firebase editProduct error:', err));
       return updated;
     });
   };
@@ -207,17 +224,12 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
       image: image || '',
       items: [],
     };
-
-    // 1. Write to Firebase FIRST
+    // Write to Firebase first, then update state
     await saveCategoryToFirebase(categoryId, newCategory);
-
-    // 2. Then update local state (no race — Firebase already has it)
     setCategories((prev) => {
-      if (prev[categoryId]) return prev; // Already exists, skip
+      if (prev[categoryId]) return prev;
       return { ...prev, [categoryId]: newCategory };
     });
-
-    localStorage.setItem('all_products', JSON.stringify({ ...categories, [categoryId]: newCategory }));
   };
 
   // ─── EDIT CATEGORY ────────────────────────────────────────────────
@@ -238,20 +250,18 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
           ...(image !== undefined && { image }),
         },
       };
-      // Write to Firebase directly
-      saveCategoryToFirebase(categoryId, updated[categoryId])
-        .catch((err) => console.error('Firebase editCategory error:', err));
+      saveCategoryToFirebase(categoryId, {
+        ...updated[categoryId],
+        image: DEFAULT_CATEGORY_IDS.has(categoryId) ? '' : (updated[categoryId].image || ''),
+      }).catch((err) => console.error('Firebase editCategory error:', err));
       return updated;
     });
   };
 
   // ─── DELETE CATEGORY ──────────────────────────────────────────────
   const deleteCategory = (categoryId: string) => {
-    // 1. Delete from Firebase immediately
     deleteCategoryFromFirebase(categoryId)
       .catch((err) => console.error('Firebase deleteCategory error:', err));
-
-    // 2. Update local state
     setCategories((prev) => {
       const updated = { ...prev };
       delete updated[categoryId];
