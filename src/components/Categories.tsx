@@ -7,25 +7,34 @@ const Categories = () => {
   const { categories, isLoading, loadProducts } = useProducts();
 
   useEffect(() => {
-    // FIX 1: Always fetch fresh data when this component mounts.
-    // Covers the case where user visits homepage directly.
+    // Always fetch fresh from Firebase when this section mounts
     loadProducts();
 
-    // FIX 2: Re-fetch when user returns to this tab from another tab/window.
-    // Covers the case where admin added a category in another tab.
-    const handleVisibilityChange = () => {
+    // Re-fetch when user returns to this browser tab
+    const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         loadProducts();
       }
     };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (isLoading) {
+    return (
+      <section id="categories" className="section-padding bg-section-alt">
+        <div className="container-main flex justify-center items-center py-24">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+            <p className="text-muted-foreground text-sm">Loading categories...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="categories" className="section-padding bg-section-alt">
@@ -42,13 +51,6 @@ const Categories = () => {
             Explore our diverse range of premium wholesale products
           </p>
         </div>
-
-        {/* Loading state */}
-        {isLoading && Object.keys(categories).length === 0 && (
-          <div className="flex justify-center items-center py-20">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
-          </div>
-        )}
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Object.entries(categories).map(([id, cat], i) => (
@@ -74,7 +76,6 @@ const Categories = () => {
                   {cat.name}
                 </h3>
               </div>
-
               <div className="p-5">
                 <p className="text-sm text-muted-foreground mb-4">
                   {cat.description || 'Premium wholesale products'}

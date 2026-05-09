@@ -16,7 +16,6 @@ import {
   fetchCategoriesFromFirebase,
   saveCategoryToFirebase,
   deleteCategoryFromFirebase,
-  syncAllCategoriesToFirebase,
 } from '@/services/firebaseService';
 
 export interface Product {
@@ -39,8 +38,8 @@ interface ProductContextType {
   addProduct: (category: string, productName: string, imageUrl?: string) => void;
   deleteProduct: (category: string, productId: string) => void;
   editProduct: (category: string, productId: string, newName: string, imageUrl?: string) => void;
-  addCategory: (categoryId: string, categoryName: string, description?: string, image?: string) => void;
-  editCategory: (categoryId: string, categoryName: string, description?: string, image?: string) => void;
+  addCategory: (categoryId: string, categoryName: string, description?: string, image?: string) => Promise<void>;
+  editCategory: (categoryId: string, categoryName: string, description?: string, image?: string) => Promise<void>;
   deleteCategory: (categoryId: string) => void;
   loadProducts: () => Promise<void>;
 }
@@ -83,182 +82,181 @@ const defaultCategories: Record<string, ProductCategory> = {
 export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [categories, setCategories] = useState<Record<string, ProductCategory>>(defaultCategories);
   const [isLoading, setIsLoading] = useState(true);
+  const isMounted = useRef(true);
 
-  // FIX: Track whether the initial Firebase load has completed.
-  // This prevents the sync effect from writing defaultCategories
-  // back to Firebase before the real data has been fetched.
-  const isFirebaseLoaded = useRef(false);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
-  // FIX: Track whether the current categories change came from
-  // a user action (add/edit/delete) vs a Firebase fetch.
-  // Only sync to Firebase on user actions, not on fetches.
-  const shouldSync = useRef(false);
-
-  // ─── LOAD FROM FIREBASE ───────────────────────────────────────────
+  // ─── THE ONLY WAY DATA IS READ FROM FIREBASE ─────────────────────
+  // This function ONLY reads. It never triggers any write back.
+  // No useEffect watches `categories` and syncs — that was the bug.
   const loadProducts = async () => {
     try {
       setIsLoading(true);
-
       const firebaseData = await fetchCategoriesFromFirebase();
+
+      if (!isMounted.current) return; // Component unmounted, abort
 
       const merged: Record<string, ProductCategory> = { ...defaultCategories };
 
       Object.keys(firebaseData || {}).forEach((key) => {
-        const firebaseCategory = firebaseData[key];
+        const fc = firebaseData[key];
         merged[key] = {
-          name: firebaseCategory?.name || defaultCategories[key]?.name || key,
-          description:
-            firebaseCategory?.description ||
-            defaultCategories[key]?.description ||
-            'Premium wholesale products',
-          image: firebaseCategory?.image || defaultCategories[key]?.image || '',
-          items: Array.isArray(firebaseCategory?.items) ? firebaseCategory.items : [],
+          name: fc?.name || defaultCategories[key]?.name || key,
+          description: fc?.description || defaultCategories[key]?.description || 'Premium wholesale products',
+          image: fc?.image || defaultCategories[key]?.image || '',
+          items: Array.isArray(fc?.items) ? fc.items : [],
         };
       });
-
-      // FIX: Mark that we are setting state from a fetch — do NOT sync back to Firebase
-      shouldSync.current = false;
-      isFirebaseLoaded.current = true;
 
       setCategories(merged);
       localStorage.setItem('all_products', JSON.stringify(merged));
     } catch (error) {
-      console.log('Firebase load failed:', error);
-      // On error, fall back to localStorage if available
+      console.error('Firebase load failed:', error);
+      if (!isMounted.current) return;
+      // Fallback to localStorage cache
       const cached = localStorage.getItem('all_products');
       if (cached) {
-        try {
-          shouldSync.current = false;
-          setCategories(JSON.parse(cached));
-        } catch {
-          setCategories(defaultCategories);
-        }
+        try { setCategories(JSON.parse(cached)); } catch { setCategories(defaultCategories); }
       } else {
         setCategories(defaultCategories);
       }
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) setIsLoading(false);
     }
   };
 
   // ─── INITIAL LOAD ─────────────────────────────────────────────────
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── SYNC TO FIREBASE ON USER ACTIONS ONLY ───────────────────────
-  // FIX: Only runs when shouldSync.current is true,
-  // which is only set by add/edit/delete actions — never by loadProducts.
-  useEffect(() => {
-    if (!isFirebaseLoaded.current || !shouldSync.current) return;
-
-    localStorage.setItem('all_products', JSON.stringify(categories));
-
-    syncAllCategoriesToFirebase(categories).catch((err) =>
-      console.log('Firebase sync error:', err.message)
-    );
-
-    // Reset after sync
-    shouldSync.current = false;
-  }, [categories]);
+  // ─── NO AUTO-SYNC EFFECT — writes go directly to Firebase ─────────
+  // Removed the categories useEffect that was racing with loadProducts.
+  // Every write function below calls Firebase directly and immediately.
 
   // ─── ADD PRODUCT ─────────────────────────────────────────────────
   const addProduct = (category: string, productName: string, imageUrl?: string) => {
-    shouldSync.current = true;
+    const newProduct: Product = {
+      id: Date.now().toString(),
+      name: productName,
+      category,
+      image: imageUrl,
+    };
+
     setCategories((prev) => {
       const updated = { ...prev };
-      const newProduct: Product = {
-        id: Date.now().toString(),
-        name: productName,
-        category,
-        image: imageUrl,
-      };
       if (!updated[category]) {
         updated[category] = { name: category, description: '', image: '', items: [] };
       }
-      updated[category].items.push(newProduct);
+      updated[category] = {
+        ...updated[category],
+        items: [...updated[category].items, newProduct],
+      };
+      // Write directly to Firebase with the new state
+      saveCategoryToFirebase(category, updated[category])
+        .catch((err) => console.error('Firebase addProduct error:', err));
       return updated;
     });
   };
 
   // ─── DELETE PRODUCT ───────────────────────────────────────────────
   const deleteProduct = (category: string, productId: string) => {
-    shouldSync.current = true;
     setCategories((prev) => {
       const updated = { ...prev };
-      updated[category].items = updated[category].items.filter((p) => p.id !== productId);
+      updated[category] = {
+        ...updated[category],
+        items: updated[category].items.filter((p) => p.id !== productId),
+      };
+      saveCategoryToFirebase(category, updated[category])
+        .catch((err) => console.error('Firebase deleteProduct error:', err));
       return updated;
     });
   };
 
   // ─── EDIT PRODUCT ─────────────────────────────────────────────────
   const editProduct = (category: string, productId: string, newName: string, imageUrl?: string) => {
-    shouldSync.current = true;
     setCategories((prev) => {
       const updated = { ...prev };
-      const product = updated[category]?.items.find((p) => p.id === productId);
-      if (product) {
-        product.name = newName;
-        if (imageUrl) product.image = imageUrl;
-      }
+      updated[category] = {
+        ...updated[category],
+        items: updated[category].items.map((p) =>
+          p.id === productId
+            ? { ...p, name: newName, ...(imageUrl && { image: imageUrl }) }
+            : p
+        ),
+      };
+      saveCategoryToFirebase(category, updated[category])
+        .catch((err) => console.error('Firebase editProduct error:', err));
       return updated;
     });
   };
 
   // ─── ADD CATEGORY ─────────────────────────────────────────────────
-  const addCategory = (
+  const addCategory = async (
     categoryId: string,
     categoryName: string,
     description?: string,
     image?: string
-  ) => {
-    shouldSync.current = true;
+  ): Promise<void> => {
+    const newCategory: ProductCategory = {
+      name: categoryName,
+      description: description || '',
+      image: image || '',
+      items: [],
+    };
+
+    // 1. Write to Firebase FIRST
+    await saveCategoryToFirebase(categoryId, newCategory);
+
+    // 2. Then update local state (no race — Firebase already has it)
     setCategories((prev) => {
-      if (prev[categoryId]) return prev; // Already exists
-      const updated = { ...prev };
-      updated[categoryId] = { name: categoryName, description, image, items: [] };
-
-      // Also save directly to Firebase immediately for reliability
-      saveCategoryToFirebase(categoryId, updated[categoryId]).catch((err) =>
-        console.log('Firebase save error:', err.message)
-      );
-
-      return updated;
+      if (prev[categoryId]) return prev; // Already exists, skip
+      return { ...prev, [categoryId]: newCategory };
     });
+
+    localStorage.setItem('all_products', JSON.stringify({ ...categories, [categoryId]: newCategory }));
   };
 
   // ─── EDIT CATEGORY ────────────────────────────────────────────────
-  const editCategory = (
+  const editCategory = async (
     categoryId: string,
     categoryName: string,
     description?: string,
     image?: string
-  ) => {
-    shouldSync.current = true;
+  ): Promise<void> => {
     setCategories((prev) => {
       if (!prev[categoryId]) return prev;
-      const updated = { ...prev };
-      updated[categoryId] = {
-        ...updated[categoryId],
-        name: categoryName,
-        ...(description !== undefined && { description }),
-        ...(image !== undefined && { image }),
+      const updated = {
+        ...prev,
+        [categoryId]: {
+          ...prev[categoryId],
+          name: categoryName,
+          ...(description !== undefined && { description }),
+          ...(image !== undefined && { image }),
+        },
       };
+      // Write to Firebase directly
+      saveCategoryToFirebase(categoryId, updated[categoryId])
+        .catch((err) => console.error('Firebase editCategory error:', err));
       return updated;
     });
   };
 
   // ─── DELETE CATEGORY ──────────────────────────────────────────────
   const deleteCategory = (categoryId: string) => {
-    shouldSync.current = true;
+    // 1. Delete from Firebase immediately
+    deleteCategoryFromFirebase(categoryId)
+      .catch((err) => console.error('Firebase deleteCategory error:', err));
+
+    // 2. Update local state
     setCategories((prev) => {
       const updated = { ...prev };
       delete updated[categoryId];
       return updated;
     });
-    deleteCategoryFromFirebase(categoryId).catch((err) =>
-      console.log('Firebase delete error:', err.message)
-    );
   };
 
   return (
