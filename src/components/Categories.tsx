@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, LayoutGrid } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
@@ -6,10 +6,20 @@ import { useProducts } from '@/context/ProductContext';
 const Categories = () => {
   const { categories, isLoading, loadProducts } = useProducts();
   const categoryEntries = Object.entries(categories);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  const handleImageError = (categoryId: string) => {
+    setImageErrors(prev => new Set([...prev, categoryId]));
+  };
+
+  const isValidImageUrl = (url?: string): boolean => {
+    if (!url) return false;
+    return url.startsWith('data:image/') || url.startsWith('http://') || url.startsWith('https://');
+  };
 
   return (
     <section id="categories" className="section-padding bg-section-alt">
@@ -45,16 +55,25 @@ const Categories = () => {
                 className="group reveal rounded-xl overflow-hidden bg-card shadow-card border border-border hover:shadow-soft transition-all duration-300 hover:-translate-y-1"
                 style={{ transitionDelay: `${i * 0.05}s` }}
               >
-                <div className="relative h-48 overflow-hidden">
-                  <img
-                    src={cat.image}
-                    alt={cat.name}
-                    loading="lazy"
-                    width={800}
-                    height={600}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-foreground/40 to-transparent" />
+                <div className="relative h-48 overflow-hidden bg-muted">
+                  {isValidImageUrl(cat.image) && !imageErrors.has(id) ? (
+                    <>
+                      <img
+                        src={cat.image}
+                        alt={cat.name}
+                        loading="lazy"
+                        width={800}
+                        height={600}
+                        onError={() => handleImageError(id)}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-foreground/40 to-transparent" />
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-muted-foreground">No image</span>
+                    </div>
+                  )}
                   <h3 className="absolute bottom-4 left-4 font-display text-xl font-bold text-primary-foreground">
                     {cat.name}
                   </h3>
