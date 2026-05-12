@@ -5,11 +5,6 @@ import { useProducts } from '@/context/ProductContext';
 import { useToast } from '@/hooks/use-toast';
 import { loginWithEmail, logoutUser, onAuthChange, getAdminEmail } from '@/services/authService';
 import { AuthUser } from '@/services/authService';
-import {
-  saveBase64Image,
-  generateImageId,
-  isBase64Image,
-} from '@/services/imageStorageService';
 
 const AdminPanel = () => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -93,17 +88,17 @@ const AdminPanel = () => {
 
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    callback: (imageId: string) => void
+    callback: (base64String: string) => void
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 5MB per image)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Validate file size (max 2MB per image to keep Firestore documents manageable)
+    const maxSize = 2 * 1024 * 1024; // 2MB
     if (file.size > maxSize) {
       toast({
         title: 'File too large',
-        description: 'Please use an image smaller than 5MB',
+        description: 'Please use an image smaller than 2MB',
         variant: 'destructive',
       });
       e.target.value = '';
@@ -116,24 +111,19 @@ const AdminPanel = () => {
       try {
         const base64String = event.target?.result as string;
         
-        // Generate unique image ID
-        const imageId = generateImageId();
-        
-        // Save base64 to IndexedDB
-        await saveBase64Image(imageId, base64String);
-        
-        // Pass the image ID to the callback (not the base64 data)
-        callback(imageId);
+        // Pass the base64 string directly to the callback
+        // This will be stored in Firestore
+        callback(base64String);
         
         toast({
           title: 'Image uploaded',
-          description: 'Image stored locally and ready to use',
+          description: 'Image ready to use',
         });
       } catch (error) {
         console.error('Error uploading image:', error);
         toast({
           title: 'Upload failed',
-          description: 'Could not save image. Please try again.',
+          description: 'Could not process image. Please try again.',
           variant: 'destructive',
         });
       }

@@ -1,7 +1,6 @@
 import { useSearchParams, Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
-import { useImageLoaderBatch } from '@/hooks/useImageLoader';
 
 const Products = () => {
   const [searchParams] = useSearchParams();
@@ -16,14 +15,6 @@ const Products = () => {
     };
     return acc;
   }, {} as Record<string, { name: string; items: Array<{ name: string; image?: string }> }>);
-
-  // Collect all image IDs for batch loading
-  const allImageIds = Object.values(productData).flatMap(cat => 
-    cat.items.map(item => item.image).filter(Boolean)
-  );
-  
-  // Load all images at once
-  const loadedImages = useImageLoaderBatch(allImageIds);
 
   // Filter products based on category parameter
   const filteredProducts = categoryFilter 
@@ -104,7 +95,7 @@ const Products = () => {
                 >
                   <div className="aspect-[4/3] overflow-hidden bg-muted">
                     <img 
-                      src={loadedImages[item.image || ''] || item.image} 
+                      src={item.image} 
                       alt={item.name}
                       loading="lazy"
                       decoding="async"

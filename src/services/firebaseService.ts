@@ -16,38 +16,24 @@ export interface FirebaseCategory extends ProductCategory {
 }
 
 /**
- * Strips base64 images before saving to Firestore.
- * Base64 strings are MBs in size — they cause Firestore document size limit
- * errors and make fetches fail silently, causing blank pages.
- * 
- * Instead of storing base64 in Firestore, we store image IDs that reference
- * base64 data stored in IndexedDB (client-side).
+ * Sanitizes category data before saving to Firestore.
+ * Keeps base64 images (they're now stored directly in Firestore).
+ * Removes any invalid data types.
  */
 const sanitizeCategory = (category: ProductCategory) => {
   const sanitizedItems = (category.items || []).map((item) => ({
     id: item.id || '',
     name: item.name || '',
     category: item.category || '',
-    // Keep image reference (URL or imageId), but strip actual base64 data
-    image:
-      item.image &&
-      typeof item.image === 'string' &&
-      !item.image.startsWith('[object')
-        ? item.image
-        : '',
+    // Keep image as-is (base64 or URL)
+    image: item.image && typeof item.image === 'string' ? item.image : '',
   }));
-
-  const safeImage =
-    category.image &&
-    typeof category.image === 'string' &&
-    !category.image.startsWith('[object')
-      ? category.image
-      : '';
 
   return {
     name: category.name || '',
     description: category.description || '',
-    image: safeImage,
+    // Keep image as-is (base64 or URL)
+    image: category.image && typeof category.image === 'string' ? category.image : '',
     items: sanitizedItems,
   };
 };
