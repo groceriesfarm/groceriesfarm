@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { sendContactEmailWithFallback, initEmailJS } from '@/services/emailService';
 
 const contactInfo = [
   { icon: Phone, label: 'Phone', value: '+91 8247035192' },
@@ -14,6 +15,14 @@ const Contact = () => {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [sending, setSending] = useState(false);
 
+  // Initialize EmailJS on component mount
+  useEffect(() => {
+    const initialized = initEmailJS();
+    if (!initialized) {
+      console.warn('EmailJS not configured, will use FormSubmit fallback');
+    }
+  }, []);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.message) {
@@ -23,31 +32,24 @@ const Contact = () => {
 
     setSending(true);
     try {
-      // Using FormSubmit.co - FREE, no signup required
-      const response = await fetch('https://formsubmit.co/groceriesfarm1@gmail.com', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          phone: form.phone || 'Not provided',
-          message: form.message,
-        }),
+      // Send email using EmailJS with FormSubmit fallback
+      await sendContactEmailWithFallback({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        message: form.message,
       });
 
-      if (response.ok) {
-        toast({ title: 'Message sent!', description: 'We will get back to you shortly.' });
-        setForm({ name: '', email: '', phone: '', message: '' });
-      } else {
-        throw new Error('Failed to send');
-      }
+      toast({ 
+        title: 'Message sent!', 
+        description: 'We will get back to you shortly at groceriesfarm1@gmail.com' 
+      });
+      setForm({ name: '', email: '', phone: '', message: '' });
     } catch (error) {
       console.error('Email send error:', error);
       toast({
         title: 'Failed to send message',
-        description: 'Please try again or contact us directly.',
+        description: 'Please try again or contact us directly at groceriesfarm1@gmail.com',
         variant: 'destructive',
       });
     } finally {

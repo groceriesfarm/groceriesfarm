@@ -15,19 +15,23 @@ export interface FirebaseCategory extends ProductCategory {
   id?: string;
 }
 
-// Strips base64 images and local asset objects before saving to Firestore.
-// base64 strings are MBs in size — they cause Firestore document size limit
-// errors and make fetches fail silently, causing blank pages.
+/**
+ * Strips base64 images before saving to Firestore.
+ * Base64 strings are MBs in size — they cause Firestore document size limit
+ * errors and make fetches fail silently, causing blank pages.
+ * 
+ * Instead of storing base64 in Firestore, we store image IDs that reference
+ * base64 data stored in IndexedDB (client-side).
+ */
 const sanitizeCategory = (category: ProductCategory) => {
   const sanitizedItems = (category.items || []).map((item) => ({
     id: item.id || '',
     name: item.name || '',
     category: item.category || '',
-    // Strip base64 — only URL strings are allowed
+    // Keep image reference (URL or imageId), but strip actual base64 data
     image:
       item.image &&
       typeof item.image === 'string' &&
-      !item.image.startsWith('data:') &&
       !item.image.startsWith('[object')
         ? item.image
         : '',
@@ -36,7 +40,6 @@ const sanitizeCategory = (category: ProductCategory) => {
   const safeImage =
     category.image &&
     typeof category.image === 'string' &&
-    !category.image.startsWith('data:') &&
     !category.image.startsWith('[object')
       ? category.image
       : '';

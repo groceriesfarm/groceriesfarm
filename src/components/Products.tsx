@@ -1,49 +1,7 @@
 import { useSearchParams, Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
-
-// Function to generate image URLs for each product using high-quality sources
-const getProductImage = (productName: string): string => {
-  // Map product names to quality product images
-  const imageMap: Record<string, string> = {
-    'Turmeric': 'https://5.imimg.com/data5/SELLER/Default/2024/7/436750334/EE/IY/SJ/19014369/natural-organic-turmeric-powder.jpg',
-    'Red Chili Powder': 'https://vibrantliving.in/cdn/shop/files/RedChilliPowder.png?crop=center&height=1200&v=1731060133&width=1200',
-    'Coriander Powder': 'https://shriradhespices.in/storage/news/gemini-generated-image-9s5hw29s5hw29s5h.jpg',
-    'Cumin Seeds': 'https://nuttyyogi.com/cdn/shop/products/CuminSeeds.png?v=1680766965',
-    'Black Pepper': 'https://www.stylecraze.com/wp-content/uploads/2013/06/17-Amazing-Benefits-Of-Black-Pepper-For-Skin-Hair-And-Health_1200px.jpg.webp',
-    'Garam Masala': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTxzKZpsgr1oFo2ZxrhM3rRaNql4Qr67-jrIA&s',
-    'Cardamom': 'https://vibrantliving.in/cdn/shop/files/CardamomGreen.png?v=1731059940&width=2048',
-    'Cinnamon': 'https://images.immediate.co.uk/production/volatile/sites/30/2016/08/cinnamon-benefits44-724deaf.jpg',
-    'Toor Dal': 'https://aromaticessence.co/wp-content/uploads/2022/01/toor_dal.jpg',
-    'Moong Dal': 'https://nuttyyogi.com/cdn/shop/products/MOOONG.jpg?v=1606373709',
-    'Chana Dal': 'https://twobrothersindiashop.com/cdn/shop/articles/chana-dal-benefits.png?v=1694585472&width=1024',
-    'Masoor Dal': 'https://healthymiller.com/cdn/shop/files/malkamasoor.png?v=1693908186',
-    'Urad Dal': 'https://vrmshoppe.com/wp-content/uploads/2021/05/urad-dal-500x500fdsfdf.jpg',
-    'Rajma': 'https://twobrothersindiashop.com/cdn/shop/articles/benefits-of-rajma.png?v=1691755459&width=1024',
-    'Chickpeas': 'https://nutritionsource.hsph.harvard.edu/wp-content/uploads/2024/11/AdobeStock_118383793.jpeg',
-    'Green Moong': 'https://c.ndtvimg.com/2023-07/rgfhdeg_green-moong-or-green-gram_625x300_12_July_23.jpg?im=FeatureCrop,algorithm=dnn,width=620,height=350?im=FaceCrop,algorithm=dnn,width=1200,height=886',
-    'Moringa Powder': 'https://media.post.rvohealth.io/wp-content/uploads/2020/08/moringa-powder-for-weight-loss-732x549-thumbnail.jpg',
-    'Ashwagandha': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRT770HKXY8unwmtCXzecyVOmF58mOENAQkFQ&s',
-    'Neem Powder': 'https://tiimg.tistatic.com/fp/1/008/182/pure-herbal-neem-leaf-powder-for-healthy-skin-weight-loss-992.jpg',
-    'Amla Powder': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQCspD6Yv0eRwHm8WGLJ_g00P2RJNZ1_7f9GQ&s',
-    'Henna Powder': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtlJJCpj2Fk5zdjSxIgMPP_Hd0Ht-625a9Qw&s',
-    'Tulsi Powder': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcScbNRZrFK2vVWMyErzouY0crbBHZJW1MVLWw&s',
-    'Wheat Flour': 'https://urbandelight.in/cdn/shop/files/2_fb492171-ce87-4bb9-beb6-7f6e781084d0.jpg?v=1745755636&width=1445',
-    'Rice Flour': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3MoNbpP7IGko2eYhXEhuTl1Zh8iKGbC-6GQ&s',
-    'Gram Flour (Besan)': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTkPwVX7uFpccPk3EjijE83PL_HU44_hqEPog&s',
-    'Corn Flour': 'https://cdn.shopaccino.com/edible-smart/products/corn-flour-358794_l.jpg?v=704',
-    'Ragi Flour': 'https://www.rootsveyr.com/wp-content/uploads/2022/08/Ragi-Flour.jpg',
-    'Multigrain Flour': 'https://twobrothersindiashop.com/cdn/shop/articles/Cover_1.png?v=1686123617&width=1024',
-    'Basmati Rice': 'https://thericechick.com/wp-content/uploads/2022/10/feature-3-what-is-basmati-rice.jpg',
-    'Wheat Grain': 'https://m.media-amazon.com/images/I/51QQu6SogmL._AC_UF894,1000_QL80_.jpg',
-    'Jaggery': 'https://www.apiimpex.com/assets/img/product-img/8.jpeg',
-    'Mustard Seeds': 'https://sharmaglobletrade.com/wp-content/uploads/2024/08/Mustard-Seeds.jpg',
-    'Sesame Seeds': 'https://5.imimg.com/data5/SELLER/Default/2021/8/VF/RB/PK/134706891/organic-til-white-sesame.jpg',
-    'Groundnuts': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSrdOf7_9rlSCZL_2X-lTtDK4_WFdNhCP98ZA&s',
-  };
-
-  return imageMap[productName] || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT1gkutdgQHhRK_4bHIaWtDRkIgd1Fgquoj-g&s';
-};
+import { useImageLoaderBatch } from '@/hooks/useImageLoader';
 
 const Products = () => {
   const [searchParams] = useSearchParams();
@@ -58,6 +16,14 @@ const Products = () => {
     };
     return acc;
   }, {} as Record<string, { name: string; items: Array<{ name: string; image?: string }> }>);
+
+  // Collect all image IDs for batch loading
+  const allImageIds = Object.values(productData).flatMap(cat => 
+    cat.items.map(item => item.image).filter(Boolean)
+  );
+  
+  // Load all images at once
+  const loadedImages = useImageLoaderBatch(allImageIds);
 
   // Filter products based on category parameter
   const filteredProducts = categoryFilter 
@@ -138,7 +104,7 @@ const Products = () => {
                 >
                   <div className="aspect-[4/3] overflow-hidden bg-muted">
                     <img 
-                      src={item.image || getProductImage(item.name)} 
+                      src={loadedImages[item.image || ''] || item.image} 
                       alt={item.name}
                       loading="lazy"
                       decoding="async"

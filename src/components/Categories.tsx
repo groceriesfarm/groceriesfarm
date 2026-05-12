@@ -2,10 +2,15 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, LayoutGrid } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
+import { useImageLoaderBatch } from '@/hooks/useImageLoader';
 
 const Categories = () => {
   const { categories, isLoading, loadProducts } = useProducts();
   const categoryEntries = Object.entries(categories);
+  
+  // Load all category images
+  const categoryImages = categoryEntries.map(([_, cat]) => cat.image).filter(Boolean);
+  const loadedImages = useImageLoaderBatch(categoryImages);
 
   useEffect(() => {
     loadProducts();
@@ -47,10 +52,7 @@ const Categories = () => {
               >
                 <div className="relative h-48 overflow-hidden">
                   <img
-                    src={
-                      cat.image ||
-                      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT1gkutdgQHhRK_4bHIaWtDRkIgd1Fgquoj-g&s'
-                    }
+                    src={loadedImages[cat.image || ''] || cat.image}
                     alt={cat.name}
                     loading="lazy"
                     width={800}
