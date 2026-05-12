@@ -1,61 +1,65 @@
 /**
- * Firebase Storage Service
- * Handles image uploads to Firebase Storage
- * Stores URLs in Firestore (keeps documents lean)
+ * Image Storage Service
+ * Stores images as data URLs directly in Firestore
+ * Simple and works without Firebase Storage configuration
  */
-
-import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
-import app from '@/lib/firebase';
-
-const storage = getStorage(app);
 
 /**
- * Upload a base64 image to Firebase Storage
- * @param base64String - The base64 image string (e.g., "data:image/jpeg;base64,...")
- * @param fileName - Name for the file (e.g., "product-123.jpg")
- * @returns The download URL of the uploaded image
+ * Compress a base64 image to reduce size
+ * @param base64String - The base64 image string
+ * @param maxWidth - Maximum width in pixels
+ * @param maxHeight - Maximum height in pixels
+ * @param quality - Quality 0-1 (default 0.7)
+ * @returns Compressed base64 string
  */
-export const uploadImageToStorage = async (
+export const compressImage = (
   base64String: string,
-  fileName: string
+  maxWidth: number = 800,
+  maxHeight: number = 600,
+  quality: number = 0.7
 ): Promise<string> => {
-  try {
-    // Generate unique file path
-    const timestamp = Date.now();
-    const filePath = `images/${timestamp}-${fileName}`;
-    const imageRef = ref(storage, filePath);
-
-    // Upload the base64 string
-    await uploadString(imageRef, base64String, 'data_url');
-
-    // Get the download URL
-    const downloadURL = await getDownloadURL(imageRef);
-    return downloadURL;
-  } catch (error) {
-    console.error('Error uploading image to storage:', error);
-    throw error;
-  }
-};
-
-/**
- * Delete an image from Firebase Storage
- * @param downloadURL - The download URL of the image to delete
- */
-export const deleteImageFromStorage = async (downloadURL: string): Promise<void> => {
-  try {
-    // Extract the file path from the URL
-    const decodedURL = decodeURIComponent(downloadURL);
-    const filePath = decodedURL.split('/o/')[1]?.split('?')[0];
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = base64String;
     
-    if (!filePath) {
-      console.warn('Could not extract file path from URL:', downloadURL);
-      return;
-    }
-
-    const imageRef = ref(storage, filePath);
-    await deleteObject(imageRef);
-  } catch (error) {
-    console.error('Error deleting image from storage:', error);
-    // Don't throw - deletion failure shouldn't break the app
-  }
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+      
+      // Calculate new dimensions
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Get the image type from the original base64 string
+      const imageType = base64String.includes('png') ? 'image/png' : 'image/jpeg';
+      const compressedBase64 = canvas.toDataURL(imageType, quality);
+      
+      resolve(compressedBase64);
+    };
+    
+    img.onerror = () => {
+      reject(new Error('Could not load image'));
+    };
+  });
 };

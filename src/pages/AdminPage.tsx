@@ -5,7 +5,7 @@ import { useProducts } from '@/context/ProductContext';
 import { useToast } from '@/hooks/use-toast';
 import { loginWithEmail, logoutUser, onAuthChange, getAdminEmail } from '@/services/authService';
 import { AuthUser } from '@/services/authService';
-import { uploadImageToStorage } from '@/services/storageService';
+import { compressImage } from '@/services/storageService';
 
 const AdminPanel = () => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -110,13 +110,18 @@ const AdminPanel = () => {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const base64String = event.target?.result as string;
+        let base64String = event.target?.result as string;
         
-        // Upload to Firebase Storage
-        const downloadURL = await uploadImageToStorage(base64String, file.name);
+        console.log('Original image size:', base64String.length);
         
-        // Pass the download URL to the callback
-        callback(downloadURL);
+        // Compress the image to reduce size
+        base64String = await compressImage(base64String, 800, 600, 0.7);
+        
+        console.log('Compressed image size:', base64String.length);
+        
+        // Pass the compressed base64 string directly to the callback
+        // This will be stored in Firestore
+        callback(base64String);
         
         toast({
           title: 'Image uploaded',
@@ -126,7 +131,7 @@ const AdminPanel = () => {
         console.error('Error uploading image:', error);
         toast({
           title: 'Upload failed',
-          description: 'Could not upload image. Please try again.',
+          description: 'Could not process image. Please try again.',
           variant: 'destructive',
         });
       }
