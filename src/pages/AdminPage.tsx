@@ -5,6 +5,7 @@ import { useProducts } from '@/context/ProductContext';
 import { useToast } from '@/hooks/use-toast';
 import { loginWithEmail, logoutUser, onAuthChange, getAdminEmail } from '@/services/authService';
 import { AuthUser } from '@/services/authService';
+import { uploadImageToStorage } from '@/services/storageService';
 
 const AdminPanel = () => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -88,17 +89,17 @@ const AdminPanel = () => {
 
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    callback: (base64String: string) => void
+    callback: (imageUrl: string) => void
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 2MB per image to keep Firestore documents manageable)
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    // Validate file size (max 5MB per image)
+    const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
       toast({
         title: 'File too large',
-        description: 'Please use an image smaller than 2MB',
+        description: 'Please use an image smaller than 5MB',
         variant: 'destructive',
       });
       e.target.value = '';
@@ -111,19 +112,21 @@ const AdminPanel = () => {
       try {
         const base64String = event.target?.result as string;
         
-        // Pass the base64 string directly to the callback
-        // This will be stored in Firestore
-        callback(base64String);
+        // Upload to Firebase Storage
+        const downloadURL = await uploadImageToStorage(base64String, file.name);
+        
+        // Pass the download URL to the callback
+        callback(downloadURL);
         
         toast({
           title: 'Image uploaded',
-          description: 'Image ready to use',
+          description: 'Image is ready to use',
         });
       } catch (error) {
         console.error('Error uploading image:', error);
         toast({
           title: 'Upload failed',
-          description: 'Could not process image. Please try again.',
+          description: 'Could not upload image. Please try again.',
           variant: 'destructive',
         });
       }
