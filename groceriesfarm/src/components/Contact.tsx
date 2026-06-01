@@ -6,7 +6,7 @@ import { sendContactEmailWithFallback, initEmailJS } from '@/services/emailServi
 const contactInfo = [
   { icon: Phone, label: 'Phone', value: '+91 8247035192' },
   { icon: Mail, label: 'Email', value: 'maninewmart@gmail.com' },
-  { icon: MapPin, label: 'Address', value: 'Peddapuram, AndhraPradesh, India' },
+  { icon: MapPin, label: 'Address', value: 'Peddapuram, Andhra Pradesh, India' },
   { icon: Clock, label: 'Hours', value: 'Tue-Sun: 9:00 AM - 6:00 PM' },
 ];
 
